@@ -1,0 +1,18 @@
+{
+  "name": "imprim-3d",
+  "version": "1.0",
+  "private": true,
+  "description": "Modèles 3D (Printables, Thingiverse, MakerWorld, liens) → aperçu 3D → tranchage Ender 3 dans l'appli → envoi OctoPrint (PWA + APK)",
+  "scripts": {
+    "sync": "cap sync android",
+    "open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/browser": "^8.0.0",
+    "@capacitor/cli": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/filesystem": "^8.0.0",
+    "@capgo/capacitor-share-target": "^8.0.0"
+  }
+}

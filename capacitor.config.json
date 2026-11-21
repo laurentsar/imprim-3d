@@ -1,0 +1,13 @@
+{
+  "appId": "com.laurent.imprim3d",
+  "appName": "Imprim 3D",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": true
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

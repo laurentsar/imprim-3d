@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1220" />
+  <title>Imprim 3D</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="img/icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js" } }</script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-logo">🖨️</span>
+      <div>
+        <h1>Imprim 3D <span id="verChip" class="ver-chip"></span></h1>
+        <p class="sub">Modèles → tranchage Ender 3 → OctoPrint</p>
+      </div>
+    </div>
+    <button id="printerChip" class="printer-chip" title="État de l'imprimante"><i class="dot"></i><span>…</span></button>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="models">🔎 Modèles</button>
+    <button class="tab" data-tab="library">📂 Mes fichiers</button>
+    <button class="tab" data-tab="printer">🖨️ Imprimante</button>
+    <button class="tab" data-tab="settings">⚙️</button>
+  </nav>
+
+  <!-- ============================ MODÈLES ============================ -->
+  <section id="tab-models" class="tab-panel active">
+    <div class="seg" id="srcSeg">
+      <button data-src="printables" class="on">Printables</button>
+      <button data-src="thingiverse">Thingiverse</button>
+      <button data-src="makerworld">MakerWorld</button>
+    </div>
+    <form class="search-box" id="searchForm">
+      <input id="searchInput" type="search" inputmode="search" placeholder="Chercher (clip, boîte, support…) ou coller un lien" />
+      <button class="primary" type="submit">🔎</button>
+      <button type="button" id="pasteBtn" title="Coller un lien">🔗</button>
+    </form>
+    <div class="chips" id="modeChips"></div>
+    <div id="srcNote" class="note" hidden></div>
+    <div id="grid" class="grid"></div>
+    <button id="moreBtn" class="ghost wide" hidden>Charger plus</button>
+    <p id="gridEmpty" class="empty" hidden></p>
+  </section>
+
+  <!-- ============================ MES FICHIERS ============================ -->
+  <section id="tab-library" class="tab-panel">
+    <div class="toolbar">
+      <label class="primary file-btn">📂 Importer .stl / .3mf
+        <input id="fileInput" type="file" accept=".stl,.3mf,model/stl,application/sla,application/vnd.ms-package.3dmanufacturing-3dmodel+xml,application/octet-stream" multiple hidden />
+      </label>
+    </div>
+    <div id="libList" class="list"></div>
+    <p id="libEmpty" class="empty">Aucun fichier.<br>Garde un modèle depuis <b>🔎 Modèles</b> (💾), importe un fichier, ou partage un lien / un .stl depuis une autre appli vers <b>Imprim 3D</b>.</p>
+  </section>
+
+  <!-- ============================ IMPRIMANTE ============================ -->
+  <section id="tab-printer" class="tab-panel">
+    <div id="prNotConf" class="note" hidden>OctoPrint n'est pas configuré : ⚙️ Réglages → OctoPrint.</div>
+    <div class="card" id="prCard">
+      <div class="row between"><b id="prState">—</b><button id="prRefresh" class="icon-btn">🔄</button></div>
+      <div class="temps">
+        <div><span>Buse</span><b id="prTool">—</b></div>
+        <div><span>Plateau</span><b id="prBed">—</b></div>
+      </div>
+      <div id="prJob" class="job" hidden>
+        <div class="job-name" id="prJobName"></div>
+        <div class="bar"><i id="prBar"></i></div>
+        <div class="row between small"><span id="prPct"></span><span id="prLeft"></span></div>
+      </div>
+      <div class="btns">
+        <button id="prConnect">🔌 Connecter</button>
+        <button id="prPause">⏸️ Pause</button>
+        <button id="prCancel" class="danger">⏹️ Annuler</button>
+      </div>
+      <div class="btns">
+        <button data-heat="PLA">🔥 PLA</button>
+        <button data-heat="PETG">🔥 PETG</button>
+        <button data-heat="off">❄️ Refroidir</button>
+      </div>
+    </div>
+    <div class="card" id="camCard" hidden>
+      <img id="camImg" alt="Caméra de l'imprimante" />
+    </div>
+    <h3 class="h3">Fichiers sur OctoPrint</h3>
+    <div id="opFiles" class="list"></div>
+  </section>
+
+  <!-- ============================ RÉGLAGES ============================ -->
+  <section id="tab-settings" class="tab-panel">
+    <div class="card">
+      <h3>🖨️ OctoPrint</h3>
+      <label class="fld">Adresse<input id="cfgOctoUrl" type="url" placeholder="http://192.168.1.91:5000" /></label>
+      <label class="fld">Clé API<input id="cfgOctoKey" type="password" autocomplete="off" placeholder="colle une clé, ou demande-la ↓" /></label>
+      <div class="btns">
+        <button id="cfgAskKey" class="primary">🔑 Demander une clé</button>
+        <button id="cfgTest">✅ Tester</button>
+      </div>
+      <p id="cfgOctoMsg" class="small muted"></p>
+      <label class="fld">Caméra (image fixe)<input id="cfgCam" type="url" placeholder="http://192.168.1.91:5001/snapshot" /></label>
+    </div>
+    <div class="card">
+      <h3>🧩 Thingiverse</h3>
+      <label class="fld">Jeton d'application<input id="cfgTvToken" type="password" autocomplete="off" placeholder="App Token" /></label>
+      <p class="small muted">Thingiverse exige un jeton gratuit : sur thingiverse.com (connecté) → <b>Developers</b> → <b>Create an App</b> (type « Desktop / Web App ») → copie l'<b>App Token</b> ici. Il reste sur ce téléphone.</p>
+    </div>
+    <div class="card">
+      <h3>✂️ Tranchage</h3>
+      <p class="small muted">Profil Creality Ender 3 (plateau 220 × 220, buse 0,4, filament 1,75). Les derniers réglages utilisés dans l'atelier sont repris par défaut.</p>
+      <label class="fld">Taille du plateau (mm)<input id="cfgBed" type="number" min="150" max="300" step="5" /></label>
+    </div>
+    <div class="card" id="backup-panel"></div>
+    <div class="card">
+      <h3>ℹ️ Application</h3>
+      <p class="small">Version <b id="appVersion"></b><span id="updState"></span></p>
+      <button id="checkUpd">Vérifier les mises à jour</button>
+      <p class="small muted">Tranchage : CuraEngine (WebAssembly, cura-wasm). Aperçu : three.js.</p>
+    </div>
+  </section>
+
+  <!-- ============================ FICHE MODÈLE ============================ -->
+  <div id="detail" class="sheet" hidden>
+    <div class="sheet-head">
+      <button class="icon-btn" data-close>←</button>
+      <b id="dTitle" class="ellipsis"></b>
+      <button class="icon-btn" id="dOpen" title="Ouvrir sur le site">↗️</button>
+    </div>
+    <div class="sheet-body">
+      <div id="dGallery" class="gallery"></div>
+      <p id="dAuthor" class="muted small"></p>
+      <div id="dExternal" class="note" hidden></div>
+      <h3 class="h3">Fichiers</h3>
+      <div id="dFiles" class="list"></div>
+      <details class="desc"><summary>Description</summary><div id="dDesc"></div></details>
+    </div>
+  </div>
+
+  <!-- ============================ ATELIER ============================ -->
+  <div id="atelier" class="sheet" hidden>
+    <div class="sheet-head">
+      <button class="icon-btn" data-close>←</button>
+      <b id="aTitle" class="ellipsis"></b>
+      <span></span>
+    </div>
+    <div class="sheet-body">
+      <div id="viewer" class="viewer"></div>
+      <div id="aSize" class="size"></div>
+      <label class="fld" id="aObjWrap" hidden>Objet<select id="aObj"></select></label>
+      <div class="btns tight">
+        <button data-rot="0">↻ X</button>
+        <button data-rot="1">↻ Y</button>
+        <button data-rot="2">↻ Z</button>
+        <button id="aFlat" title="Poser la plus grande face sur le plateau">⬇️ À plat</button>
+        <button id="aReset">↺</button>
+      </div>
+      <label class="fld">Échelle <b id="aScaleV">100 %</b><input id="aScale" type="range" min="10" max="400" step="5" value="100" /></label>
+
+      <div class="grid2">
+        <label class="fld">Qualité<select id="sQuality"></select></label>
+        <label class="fld">Matériau<select id="sMaterial"></select></label>
+        <label class="fld">Remplissage <b id="sInfillV"></b><input id="sInfill" type="range" min="0" max="100" step="5" /></label>
+        <label class="fld">Parois<select id="sWalls"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+        <label class="fld">Supports<select id="sSupport">
+          <option value="none">Aucun</option><option value="buildplate">Depuis le plateau</option><option value="everywhere">Partout</option>
+        </select></label>
+        <label class="fld">Adhérence<select id="sAdhesion">
+          <option value="skirt">Jupe</option><option value="brim">Bordure (brim)</option><option value="none">Aucune</option>
+        </select></label>
+      </div>
+
+      <button id="aSlice" class="primary wide big">✂️ Trancher</button>
+      <div id="aProg" class="prog" hidden><div class="bar"><i id="aBar"></i></div><span id="aProgTxt"></span></div>
+      <div id="aResult" class="card result" hidden>
+        <div class="temps">
+          <div><span>Durée</span><b id="rTime"></b></div>
+          <div><span>Filament</span><b id="rFil"></b></div>
+          <div><span>Couches</span><b id="rLayers"></b></div>
+        </div>
+        <div class="btns">
+          <button id="rSend">📤 Envoyer</button>
+          <button id="rPrint" class="primary">▶️ Imprimer</button>
+          <button id="rSave">💾 G-code</button>
+        </div>
+        <p id="rMsg" class="small muted"></p>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="vendor/jszip.min.js"></script>
+  <script>
+    window.UPDATE_REPO = 'laurentsar/imprim-3d';
+    window.APP_VERSION = '1.0';
+  </script>
+  <script type="module" src="app.js"></script>
+  <script src="update-check.js"></script>
+  <script>window.BACKUP_APP = 'imprim-3d'; window.BACKUP_SKIP = [/^cache:/];</script>
+  <script src="autobackup.js"></script>
+  <script>AutoBackup.mount(document.getElementById('backup-panel'));</script>
+</body>
+</html>
