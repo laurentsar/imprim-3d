@@ -40,7 +40,8 @@ async function gql(query, variables = {}) {
   if (j.errors && !j.data) throw new Error(j.errors[0].message);
   return j.data;
 }
-const PR_ITEM = 'id name slug image { filePath } likesCount downloadCount user { publicUsername }';
+const PR_ITEM = 'id name slug image { filePath } likesCount downloadCount price premium user { publicUsername }';
+const prFree = p => !(p.price > 0) && !p.premium;
 const prItem = p => ({
   src: 'printables', id: p.id, name: p.name,
   img: p.image ? PR_MEDIA + p.image.filePath : '',
@@ -54,11 +55,11 @@ export const printables = {
     if (query) {
       const off = page || 0;
       const d = await gql(`query($q:String!,$o:Int){ searchPrints2(query:$q, limit:20, offset:$o) { totalCount items { ${PR_ITEM} } } }`, { q: query, o: off });
-      const items = d.searchPrints2.items.map(prItem);
+      const items = d.searchPrints2.items.filter(prFree).map(prItem);
       return { items, next: off + 20 < d.searchPrints2.totalCount ? off + 20 : null };
     }
     const d = await gql(`query($ord:String,$c:String){ morePrints(ordering:$ord, limit:20, cursor:$c) { cursor items { ${PR_ITEM} } } }`, { ord: mode, c: page });
-    return { items: d.morePrints.items.map(prItem), next: d.morePrints.cursor || null };
+    return { items: d.morePrints.items.filter(prFree).map(prItem), next: d.morePrints.cursor || null };
   },
   async detail(id) {
     const d = await gql(`query($id:ID!){ print(id:$id) { id name slug summary description likesCount downloadCount
@@ -163,7 +164,71 @@ export const makerworld = {
   },
 };
 
-export const SOURCES = { printables, thingiverse, makerworld };
+// ================= Thangs =================
+// Recherche et fiches publiques ; téléchargement réservé aux comptes Thangs →
+// même parcours que MakerWorld (ouvrir le site, télécharger, importer).
+// Les modèles réservés aux abonnés (plans) ou vendus (marketplace) sont écartés.
+const TH_API = 'https://thangs.com/api/models';
+const thFree = m => !(m.plans && m.plans.length) && !m.marketplaceInfo && !(m.marketplacePrice > 0);
+const thPrintable = m => !m.fileTypes || m.fileTypes.some(t => /^(stl|3mf|obj)$/i.test(t));
+export const thangs = {
+  label: 'Thangs',
+  // Pas de liste « populaires » publique : les modes sont des recherches par thème.
+  modes: [['organizer', '📦 Rangement'], ['gadget', '🎁 Gadgets'], ['toy', '🧸 Jouets'], ['tool', '🔧 Outils'], ['vase', '🏺 Déco'], ['cosplay', '🎭 Cosplay']],
+  async list({ mode = 'organizer', query = '', page = null }) {
+    const p = page || 0;
+    const q = query || mode;
+    const d = await getJSON(`${TH_API}/v3/search-by-text?searchTerm=${encodeURIComponent(q)}&page=${p}&pageSize=24`);
+    const r = d.results || [];
+    return {
+      items: r.filter(m => thFree(m) && thPrintable(m)).map(m => ({
+        src: 'thangs', id: m.modelId, name: m.name, img: m.thumbnailUrl || (m.thumbnails || [])[0] || '',
+        author: m.ownerUsername || '', likes: m.likesCount, downloads: m.downloadCount,
+      })),
+      next: r.length === 24 ? p + 1 : null,
+    };
+  },
+  async detail(id) {
+    const d = await getJSON(`${TH_API}/${encodeURIComponent(id)}`);
+    if (!thFree(d)) throw new Error('Modèle Thangs réservé aux abonnés ou payant');
+    return {
+      src: 'thangs', id: d.id, name: d.name, author: d.owner?.username || '',
+      url: `https://thangs.com/m/${d.id}`,
+      images: (d.attachments || []).filter(a => a.imageUrl).map(a => a.imageUrl),
+      html: (d.description || '').replace(/\n/g, '<br>'),
+      files: [], external: true,
+    };
+  },
+};
+
+// ================= Tous les sites =================
+// Interroge les sources en parallèle et entremêle les résultats ; chaque source
+// garde son propre curseur. Une source en erreur (réseau, jeton manquant) est ignorée.
+export function allSources(getToken) {
+  const subs = () => ['printables', 'makerworld', 'thangs', ...(getToken() ? ['thingiverse'] : [])];
+  return {
+    label: 'Tous',
+    modes: [['popular', '🔥 Populaires']],
+    async list({ query = '', page = null }) {
+      const cur = page || Object.fromEntries(subs().map(k => [k, null]));
+      const keys = Object.keys(cur);
+      const res = await Promise.allSettled(keys.map(k =>
+        SOURCES[k].list({ query, page: cur[k], token: getToken(), mode: SOURCES[k].modes[0][0] })));
+      const lists = [], next = {};
+      res.forEach((r, i) => {
+        if (r.status !== 'fulfilled') return;
+        lists.push(r.value.items);
+        if (r.value.next != null) next[keys[i]] = r.value.next;
+      });
+      if (!lists.length && res.length) throw res[0].reason;
+      const items = [];
+      for (let i = 0; lists.some(l => i < l.length); i++) lists.forEach(l => { if (i < l.length) items.push(l[i]); });
+      return { items, next: Object.keys(next).length ? next : null };
+    },
+  };
+}
+
+export const SOURCES = { printables, thingiverse, makerworld, thangs };
 
 // ================= liens collés / partagés =================
 // Renvoie { src, id } pour une page modèle connue, { direct: url } pour un lien
@@ -175,6 +240,7 @@ export function parseLink(text) {
   let m;
   if ((m = url.match(/printables\.com\/(?:[a-z]{2}\/)?model\/(\d+)/i))) return { src: 'printables', id: m[1], url };
   if ((m = url.match(/thingiverse\.com\/thing:(\d+)/i))) return { src: 'thingiverse', id: m[1], url };
+  if ((m = url.match(/thangs\.com\/(?:m\/|designer\/[^/]+\/3d-model\/[^?#]*?-)(\d+)/i))) return { src: 'thangs', id: m[1], url };
   if ((m = url.match(/makerworld\.com\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?models\/(\d+)/i))) return { src: 'makerworld', id: m[1], url };
   const direct = directUrl(url);
   return { direct, name: fileNameFromUrl(direct) };

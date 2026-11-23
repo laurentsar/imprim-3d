@@ -136,3 +136,7 @@ button.ghost { background: transparent; }
 .chk { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 8px 2px; }
 .chk input { width: 18px; height: 18px; accent-color: var(--acc); }
 .bad-txt { color: var(--bad); }
+.mcard .badge { font-style: normal; font-size: 11px; background: var(--panel2); border-radius: 6px; padding: 1px 5px; color: var(--txt); }
+#srcSeg { overflow-x: auto; }
+#srcSeg button { white-space: nowrap; flex: 1 0 auto; padding-left: 3px; padding-right: 3px; font-size: 12px; }
+#srcSeg { gap: 1px; }

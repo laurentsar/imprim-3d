@@ -32,9 +32,11 @@
   <!-- ============================ MODÈLES ============================ -->
   <section id="tab-models" class="tab-panel active">
     <div class="seg" id="srcSeg">
-      <button data-src="printables" class="on">Printables</button>
+      <button data-src="all" class="on">🌐 Tous</button>
+      <button data-src="printables">Printables</button>
       <button data-src="thingiverse">Thingiverse</button>
       <button data-src="makerworld">MakerWorld</button>
+      <button data-src="thangs">Thangs</button>
     </div>
     <form class="search-box" id="searchForm">
       <input id="searchInput" type="search" inputmode="search" placeholder="Chercher (clip, boîte, support…) ou coller un lien" />
@@ -237,7 +239,7 @@
   <script src="vendor/jszip.min.js"></script>
   <script>
     window.UPDATE_REPO = 'laurentsar/imprim-3d';
-    window.APP_VERSION = '1.4';
+    window.APP_VERSION = '1.5';
   </script>
   <script type="module" src="app.js"></script>
   <script src="update-check.js"></script>

@@ -1,6 +1,6 @@
 // Imprim 3D — modèles (Printables / Thingiverse / MakerWorld / liens) → aperçu 3D
 // → tranchage CuraEngine (WASM) profil Ender 3 → envoi OctoPrint.
-import { SOURCES, parseLink, downloadModel } from './sources.js';
+import { SOURCES, allSources, parseLink, downloadModel } from './sources.js';
 import { loadModel, prepare, bounds, bestFlatRotation, toBinarySTL, concat } from './mesh.js';
 import { curaSettings, filamentGrams, MATERIALS, QUALITIES, DEFAULT_OPTS } from './slicer-settings.js';
 import { OctoPrint } from './octoprint.js';
@@ -133,7 +133,8 @@ $('fileInput').addEventListener('change', async e => {
 });
 
 // ---------------- parcourir les sources ----------------
-const browse = { src: 'printables', mode: null, query: '', next: null, loading: false };
+SOURCES.all = allSources(() => cfg.tvToken);
+const browse = { src: 'all', mode: null, query: '', next: null, loading: false };
 $('srcSeg').addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
@@ -160,7 +161,13 @@ $('searchForm').addEventListener('submit', e => {
 $('pasteBtn').addEventListener('click', () => askLink());
 $('linkBtn').addEventListener('click', () => askLink({ toLibrary: true }));
 $('moreBtn').addEventListener('click', () => loadList(false));
+// Défilement infini : charge la suite quand le bas de la liste approche.
+if ('IntersectionObserver' in window) {
+  new IntersectionObserver(es => { if (es.some(e => e.isIntersecting) && browse.next != null && !browse.loading) loadList(false); },
+    { rootMargin: '600px' }).observe($('moreBtn'));
+}
 
+const DIRECT = new Set(['printables', 'thingiverse']);   // téléchargement sans quitter l'appli
 function renderModes() {
   const S = SOURCES[browse.src];
   if (!browse.mode) browse.mode = S.modes[0][0];
@@ -169,9 +176,12 @@ function renderModes() {
   if (browse.src === 'thingiverse' && !cfg.tvToken) {
     note.hidden = false;
     note.innerHTML = 'Thingiverse demande un jeton gratuit : ⚙️ Réglages → Thingiverse.';
-  } else if (browse.src === 'makerworld') {
+  } else if (browse.src === 'makerworld' || browse.src === 'thangs') {
     note.hidden = false;
-    note.textContent = 'MakerWorld : parcourir sans compte. Le téléchargement exige un compte : le modèle s\'ouvre sur le site, puis Partager → Imprim 3D (ou 📂 Importer).';
+    note.textContent = `${SOURCES[browse.src].label} : parcourir sans compte, modèles gratuits uniquement. Le téléchargement exige un compte : la fiche explique comment récupérer le fichier.`;
+  } else if (browse.src === 'all' && isNative) {
+    note.hidden = false;
+    note.textContent = 'Modèles gratuits de Printables, MakerWorld, Thangs' + (cfg.tvToken ? ', Thingiverse' : '') + '. ⬇️ = téléchargement direct dans l\'appli.';
   } else if (!isNative) {
     note.hidden = false;
     note.textContent = 'Version web : les sites de modèles refusent les requêtes du navigateur (CORS). Les sources marchent dans l\'appli Android ; ici, importe un fichier depuis 📂 Mes fichiers.';
@@ -193,11 +203,13 @@ async function loadList(reset) {
   try {
     const r = await S.list({ mode: browse.mode, query: browse.query, page: browse.next, token: cfg.tvToken });
     browse.next = r.next;
+    const seen = new Set([...$('grid').children].map(c => c.dataset.src + c.dataset.id));
+    r.items = r.items.filter(it => !seen.has(it.src + it.id));
     $('grid').insertAdjacentHTML('beforeend', r.items.map(it => `
       <button class="mcard" data-src="${it.src}" data-id="${esc(it.id)}">
         <img src="${esc(it.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">
         <span class="t">${esc(it.name)}</span>
-        <span class="m">${esc(it.author)}${it.likes != null ? ' · ❤️ ' + it.likes : ''}</span>
+        <span class="m">${browse.src === 'all' ? `<i class="badge">${DIRECT.has(it.src) ? '⬇️ ' : ''}${esc(SOURCES[it.src].label)}</i> ` : ''}${esc(it.author)}${it.likes != null ? ' · ❤️ ' + it.likes : ''}</span>
       </button>`).join(''));
     $('moreBtn').hidden = !r.next;
     if (!$('grid').children.length) { $('gridEmpty').hidden = false; $('gridEmpty').textContent = 'Aucun résultat.'; }
@@ -233,13 +245,14 @@ async function openDetail(src, id) {
     $('dDesc').textContent = htmlToText(d.html) || '—';
     if (d.external) {
       $('dExternal').hidden = false;
-      $('dExternal').innerHTML = `<b>MakerWorld ne donne pas le fichier sans compte Bambu.</b>
+      const site = SOURCES[src].label, acct = src === 'makerworld' ? 'Bambu' : site;
+      $('dExternal').innerHTML = `<b>${site} ne donne pas le fichier sans compte ${acct} (gratuit).</b>
         <ol class="steps">
-          <li>Touche <b>Ouvrir sur MakerWorld</b> et connecte-toi si besoin.</li>
+          <li>Touche <b>Ouvrir sur ${site}</b> et connecte-toi si besoin.</li>
           <li>Touche <b>Télécharger</b> sur le site : le fichier (.3mf / .stl) va dans <b>Téléchargements</b>.</li>
           <li>Reviens ici et touche <b>Importer le fichier téléchargé</b>.</li>
         </ol>
-        <div class="btns"><button class="primary" id="dOpen2">↗️ 1. Ouvrir sur MakerWorld</button>
+        <div class="btns"><button class="primary" id="dOpen2">↗️ 1. Ouvrir sur ${site}</button>
         <button id="dImport2">📂 3. Importer le fichier téléchargé</button></div>`;
       $('dOpen2').onclick = () => openExternal(d.url);
       $('dImport2').onclick = () => $('fileInput').click();
@@ -300,7 +313,7 @@ async function handleLink(text, { toLibrary = false } = {}) {
   try {
     if (l.src) {
       const d = await SOURCES[l.src].detail(l.id, { token: cfg.tvToken });
-      if (d.external) { toast('MakerWorld : suis les étapes', 2500); openDetail(l.src, l.id); return; }
+      if (d.external) { toast(SOURCES[l.src].label + ' : suis les étapes', 2500); openDetail(l.src, l.id); return; }
       if (!d.files.length) { toast('Aucun fichier .stl / .3mf dans ce modèle', 5000); return; }
       let n = 0;
       for (const f of d.files) {
@@ -321,7 +334,7 @@ async function handleLink(text, { toLibrary = false } = {}) {
 async function askLink(opts) {
   let t = '';
   try { t = await navigator.clipboard.readText(); } catch (e) { /* refusé */ }
-  if (!parseLink(t)) t = prompt('Colle le lien du modèle (Printables, Thingiverse, MakerWorld, ou lien vers un .stl / .3mf : Dropbox, Google Drive, GitHub…) :', '') || '';
+  if (!parseLink(t)) t = prompt('Colle le lien du modèle (Printables, Thingiverse, MakerWorld, Thangs, ou lien vers un .stl / .3mf : Dropbox, Google Drive, GitHub…) :', '') || '';
   if (t) handleLink(t, opts);
 }
 
