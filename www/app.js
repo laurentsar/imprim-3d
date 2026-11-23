@@ -163,7 +163,10 @@ $('linkBtn').addEventListener('click', () => askLink({ toLibrary: true }));
 $('moreBtn').addEventListener('click', () => loadList(false));
 // Défilement infini : charge la suite quand le bas de la liste approche.
 if ('IntersectionObserver' in window) {
-  new IntersectionObserver(es => { if (es.some(e => e.isIntersecting) && browse.next != null && !browse.loading) loadList(false); },
+  // Au plus une page toutes les 1,5 s, pour ne pas déclencher les protections anti-robot des sites.
+  new IntersectionObserver(es => {
+    if (es.some(e => e.isIntersecting) && browse.next != null && !browse.loading && Date.now() - (browse.last || 0) > 1500) loadList(false);
+  },
     { rootMargin: '600px' }).observe($('moreBtn'));
 }
 
@@ -196,6 +199,7 @@ async function loadList(reset) {
   $('gridEmpty').hidden = true;
   $('moreBtn').hidden = true;
   browse.loading = true;
+  browse.last = Date.now();
   const ph = document.createElement('p');
   ph.className = 'empty';
   ph.textContent = '⏳ Chargement…';
@@ -215,7 +219,8 @@ async function loadList(reset) {
     if (!$('grid').children.length) { $('gridEmpty').hidden = false; $('gridEmpty').textContent = 'Aucun résultat.'; }
   } catch (e) {
     $('gridEmpty').hidden = false;
-    $('gridEmpty').textContent = '⚠️ ' + e.message;
+    $('gridEmpty').innerHTML = `⚠️ ${esc(e.message)}<br><button class="ghost" id="retryBtn">🔄 Réessayer</button>`;
+    $('retryBtn').onclick = () => loadList(!$('grid').children.length);
   } finally {
     ph.remove();
     browse.loading = false;

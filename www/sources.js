@@ -12,14 +12,30 @@ const PR_MEDIA = 'https://media.printables.com/';
 const TV_API = 'https://api.thingiverse.com';
 const MW_API = 'https://makerworld.com/api/v1';
 
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const SITE = url => (url.match(/\/\/(?:api\.|www\.)?([^./]+)\./) || [])[1] || 'Le site';
+
+// 403 / 429 = protection anti-robot ou trop de requêtes : une nouvelle tentative
+// après une pause, puis un message clair plutôt qu'un code HTTP.
 async function getJSON(url, opts = {}) {
-  const r = await fetch(url, opts);
-  if (!r.ok) {
-    let msg = 'HTTP ' + r.status;
-    try { const j = await r.json(); msg += ' — ' + (j.error || j.message || JSON.stringify(j).slice(0, 120)); } catch (e) { /* corps non JSON */ }
-    throw new Error(msg);
+  let r;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    r = await fetch(url, opts);
+    if (r.ok) return r.json();
+    if (r.status !== 403 && r.status !== 429) break;
+    if (attempt === 0) await wait(2000);
   }
-  return r.json();
+  let body = '';
+  try { body = await r.text(); } catch (e) { /* corps illisible */ }
+  const site = SITE(url).replace(/^./, c => c.toUpperCase());
+  if (r.status === 403 || r.status === 429) {
+    const bot = /just a moment|cloudflare|captcha|access denied|attention required/i.test(body);
+    throw new Error(`${site} refuse temporairement les requêtes (${bot ? 'protection anti-robot' : 'HTTP ' + r.status}). ` +
+      'Réessaie dans quelques minutes ; si ça dure, change de réseau (Wi-Fi ↔ 4G/5G). Les autres sites restent dans 🌐 Tous.');
+  }
+  let msg = 'HTTP ' + r.status;
+  try { const j = JSON.parse(body); msg += ' — ' + (j.error || j.message || JSON.stringify(j).slice(0, 120)); } catch (e) { /* corps non JSON */ }
+  throw new Error(msg);
 }
 
 export async function getBinary(url, headers = {}) {
@@ -34,7 +50,7 @@ const isModelFile = n => /\.(stl|3mf)$/i.test(n || '');
 async function gql(query, variables = {}) {
   const j = await getJSON(PR_API, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
     body: JSON.stringify({ query, variables }),
   });
   if (j.errors && !j.data) throw new Error(j.errors[0].message);
