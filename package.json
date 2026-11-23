@@ -1,6 +1,6 @@
 {
   "name": "imprim-3d",
-  "version": "1.3",
+  "version": "1.4",
   "private": true,
   "description": "Modèles 3D (Printables, Thingiverse, MakerWorld, liens) → aperçu 3D → tranchage Ender 3 dans l'appli → envoi OctoPrint (PWA + APK)",
   "scripts": {

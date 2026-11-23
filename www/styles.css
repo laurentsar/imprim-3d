@@ -126,3 +126,13 @@ button.ghost { background: transparent; }
 
 .steps { margin: 8px 0; padding-left: 20px; line-height: 1.5; }
 #dExternal .btns { display: flex; flex-direction: column; gap: 8px; }
+.toolbar.wrap { flex-wrap: wrap; }
+.center { text-align: center; }
+.file-btn.wide { display: block; box-sizing: border-box; }
+.litho-prev { margin: 12px 0 4px; }
+.litho-prev canvas { display: block; max-width: 100%; max-height: 50vh; margin: 0 auto; border-radius: 8px;
+  box-shadow: 0 0 30px rgba(255, 220, 150, .25); image-rendering: auto; }
+#lShape { margin: 10px 0; }
+.chk { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 8px 2px; }
+.chk input { width: 18px; height: 18px; accent-color: var(--acc); }
+.bad-txt { color: var(--bad); }

@@ -50,11 +50,12 @@
 
   <!-- ============================ MES FICHIERS ============================ -->
   <section id="tab-library" class="tab-panel">
-    <div class="toolbar">
+    <div class="toolbar wrap">
       <label class="primary file-btn">📂 Importer .stl / .3mf
         <input id="fileInput" type="file" accept=".stl,.3mf,model/stl,application/sla,application/vnd.ms-package.3dmanufacturing-3dmodel+xml,application/octet-stream" multiple hidden />
       </label>
       <button type="button" id="linkBtn" class="file-btn">🔗 Importer un lien</button>
+      <button type="button" id="lithoBtn" class="file-btn">🖼️ Lithophane</button>
     </div>
     <div id="libList" class="list"></div>
     <p id="libEmpty" class="empty">Aucun fichier.<br>Garde un modèle depuis <b>🔎 Modèles</b> (💾), importe un fichier ou un lien (🔗), ou partage un lien / un .stl depuis une autre appli vers <b>Imprim 3D</b>.</p>
@@ -192,12 +193,51 @@
     </div>
   </div>
 
+  <!-- ============================ LITHOPHANE ============================ -->
+  <div id="litho" class="sheet" hidden>
+    <div class="sheet-head">
+      <button class="icon-btn" data-close>←</button>
+      <b>🖼️ Lithophane</b>
+      <span></span>
+    </div>
+    <div class="sheet-body">
+      <label class="primary file-btn wide center">📷 Choisir une photo
+        <input id="lImg" type="file" accept="image/*" hidden />
+      </label>
+      <div id="lPrevWrap" class="litho-prev" hidden>
+        <canvas id="lPrev"></canvas>
+        <p class="small muted center">Aperçu à contre-jour (une fois imprimé et éclairé)</p>
+      </div>
+      <p id="lInfo" class="small center"></p>
+      <div class="seg" id="lShape">
+        <button data-shape="flat" class="on">▭ Plat</button>
+        <button data-shape="curved">◠ Courbe</button>
+      </div>
+      <div class="grid2">
+        <label class="fld">Largeur <b id="lWidthV"></b><input id="lWidth" type="range" min="40" max="200" step="5" /></label>
+        <label class="fld" id="lAngleWrap" hidden>Courbure <b id="lAngleV"></b><input id="lAngle" type="range" min="30" max="300" step="10" /></label>
+        <label class="fld">Épaisseur mini (blancs) <b id="lMinV"></b><input id="lMin" type="range" min="0.4" max="2" step="0.1" /></label>
+        <label class="fld">Épaisseur maxi (noirs) <b id="lMaxV"></b><input id="lMax" type="range" min="1.5" max="6" step="0.1" /></label>
+        <label class="fld">Cadre <b id="lFrameV"></b><input id="lFrame" type="range" min="0" max="10" step="1" /></label>
+        <label class="fld">Détail<select id="lRes">
+          <option value="0.15">Très fin (lourd)</option><option value="0.2">Fin</option><option value="0.25">Normal</option><option value="0.35">Rapide</option>
+        </select></label>
+      </div>
+      <label class="chk"><input type="checkbox" id="lNeg" /> Négatif (inverser clair / foncé)</label>
+      <label class="chk"><input type="checkbox" id="lMirror" /> Miroir (image lisible côté lisse)</label>
+      <label class="chk"><input type="checkbox" id="lSmooth" /> Lisser (atténue le bruit des photos)</label>
+      <label class="chk" id="lUprightWrap"><input type="checkbox" id="lUpright" /> Imprimer debout (plus de détails, conseillé)</label>
+      <button id="lMake" class="primary wide big" disabled>🧊 Créer le lithophane</button>
+      <p class="small muted">Imprime en <b>PLA blanc</b>, remplissage 100 % : l'atelier se règle tout seul. Épaisseurs calculées avec le modèle de translucidité de Cura.</p>
+    </div>
+  </div>
+
   <div id="toast" class="toast" hidden></div>
 
   <script src="vendor/jszip.min.js"></script>
   <script>
     window.UPDATE_REPO = 'laurentsar/imprim-3d';
-    window.APP_VERSION = '1.3';
+    window.APP_VERSION = '1.4';
   </script>
   <script type="module" src="app.js"></script>
   <script src="update-check.js"></script>

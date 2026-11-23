@@ -43,10 +43,12 @@ function showTab(t) {
 
 // Bouton retour Android : ferme la feuille ouverte au lieu de quitter.
 const sheets = [];
-function openSheet(id) {
+// replace : la feuille remplace celle du dessus (une seule entrée d'historique).
+function openSheet(id, replace = false) {
+  if (replace && sheets.length) { const top = sheets.pop(); $(top).hidden = true; if (top === 'atelier') atelierClose(); }
   $(id).hidden = false;
   if (!sheets.includes(id)) sheets.push(id);
-  history.pushState({ sheet: id }, '');
+  if (replace) history.replaceState({ sheet: id }, ''); else history.pushState({ sheet: id }, '');
 }
 function closeSheet(id, fromPop = false) {
   $(id).hidden = true;
@@ -114,15 +116,17 @@ $('libList').addEventListener('click', async e => {
     renderLibrary();
   } else {
     const m = await DB.get(id);
-    if (m) openAtelier(m.name, m.data, m.model || '');
+    if (m) openAtelier(m.name, m.data, m.model || '', { litho: m.src === 'litho' });
   }
 });
 $('fileInput').addEventListener('change', async e => {
-  if (!$('detail').hidden) { closeSheet('detail'); showTab('library'); }
+  const fromDetail = !$('detail').hidden;
+  const one = e.target.files.length === 1;
+  if (fromDetail) { showTab('library'); if (!one) closeSheet('detail'); }
   for (const f of e.target.files) {
     const data = await f.arrayBuffer();
     await keepFile(f.name, data, { src: 'local' });
-    if (e.target.files.length === 1) openAtelier(f.name, data);
+    if (one) openAtelier(f.name, data, '', { replace: fromDetail });
   }
   e.target.value = '';
   renderLibrary();
@@ -339,11 +343,92 @@ async function onShare(ev) {
 const ST = Cap && Cap.Plugins && Cap.Plugins.CapacitorShareTarget;
 if (ST) ST.addListener('shareReceived', onShare);
 
+// ---------------- lithophane ----------------
+const L = { img: null, name: '', mod: null, timer: 0 };
+cfg.litho = { width: 100, minT: 0.8, maxT: 3.0, frame: 3, res: 0.25, shape: 'flat', angle: 120, negative: false, mirror: false, smooth: true, upright: true, ...cfg.litho };
+const lithoOpts = () => ({ ...cfg.litho, frameT: Math.max(cfg.litho.maxT, cfg.litho.frame ? cfg.litho.maxT + 1 : 0) });
+function lithoForm() {
+  const o = cfg.litho;
+  $('lWidth').value = o.width; $('lWidthV').textContent = o.width + ' mm';
+  $('lAngle').value = o.angle; $('lAngleV').textContent = o.angle + '°';
+  $('lMin').value = o.minT; $('lMinV').textContent = (+o.minT).toFixed(1) + ' mm';
+  $('lMax').value = o.maxT; $('lMaxV').textContent = (+o.maxT).toFixed(1) + ' mm';
+  $('lFrame').value = o.frame; $('lFrameV').textContent = o.frame ? o.frame + ' mm' : 'aucun';
+  $('lRes').value = String(o.res); $('lNeg').checked = o.negative; $('lMirror').checked = o.mirror; $('lSmooth').checked = o.smooth; $('lUpright').checked = o.upright;
+  $('lShape').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.shape === o.shape));
+  $('lAngleWrap').hidden = o.shape !== 'curved';
+  $('lUprightWrap').hidden = o.shape === 'curved';
+}
+function lithoRead() {
+  const o = cfg.litho;
+  o.width = +$('lWidth').value; o.angle = +$('lAngle').value; o.minT = +$('lMin').value;
+  o.maxT = Math.max(+$('lMax').value, o.minT + 0.4); o.frame = +$('lFrame').value; o.res = +$('lRes').value;
+  o.negative = $('lNeg').checked; o.mirror = $('lMirror').checked; o.smooth = $('lSmooth').checked; o.upright = $('lUpright').checked;
+  saveCfg();
+  lithoForm();
+  clearTimeout(L.timer);
+  L.timer = setTimeout(lithoPreview, 150);
+}
+async function lithoPreview() {
+  if (!L.img) return;
+  if (!L.mod) L.mod = await import('./lithophane.js');
+  // Aperçu à résolution réduite (rapide), même calcul que le modèle final.
+  const o = lithoOpts();
+  const map = L.mod.thicknessMap(L.img, { ...o, res: Math.max(o.res, o.width / 300) });
+  L.mod.backlitPreview(map, $('lPrev'));
+  $('lPrevWrap').hidden = false;
+  const w = map.w, h = map.h;
+  const cells = Math.round((w / o.res) * (h / o.res));
+  const curved = o.shape === 'curved';
+  const tooBig = w > cfg.bed * (curved ? 3 : 1) || h > (curved || o.upright ? 250 : cfg.bed);
+  $('lInfo').innerHTML = `${w.toFixed(0)} × ${h.toFixed(0)} mm` + (curved ? ` · arc ${o.angle}°` : '') +
+    ` · ~${(cells * 2 / 1000).toFixed(0)} k triangles` + (tooBig ? ' · <b class="bad-txt">trop grand pour le plateau</b>' : '');
+  $('lMake').disabled = tooBig;
+}
+function loadLithoImage(file) {
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => { L.img = img; L.name = file.name.replace(/\.[^.]+$/, '') || 'photo'; lithoPreview(); };
+  img.onerror = () => { URL.revokeObjectURL(url); toast('⚠️ Image illisible'); };
+  img.src = url;
+}
+$('lithoBtn').addEventListener('click', () => { lithoForm(); openSheet('litho'); if (!L.img) $('lImg').click(); });
+$('lImg').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadLithoImage(f); e.target.value = ''; });
+['lWidth', 'lAngle', 'lMin', 'lMax', 'lFrame'].forEach(id => $(id).addEventListener('input', lithoRead));
+['lRes', 'lNeg', 'lMirror', 'lSmooth', 'lUpright'].forEach(id => $(id).addEventListener('change', lithoRead));
+$('lShape').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  cfg.litho.shape = b.dataset.shape;
+  lithoForm(); lithoRead();
+});
+$('lMake').addEventListener('click', async () => {
+  if (!L.img) return;
+  const b = $('lMake');
+  b.disabled = true; b.textContent = '⏳ Calcul du relief…';
+  await new Promise(r => setTimeout(r, 30));
+  try {
+    if (!L.mod) L.mod = await import('./lithophane.js');
+    const o = lithoOpts();
+    const { tris } = L.mod.buildMesh(L.mod.thicknessMap(L.img, o), o);
+    const data = toBinarySTL(tris);
+    const name = `${L.name}-lithophane.stl`;
+    const thumb = (() => { try { return $('lPrev').toDataURL('image/jpeg', 0.7); } catch (e) { return ''; } })();
+    await keepFile(name, data, { src: 'litho', fileId: name + Date.now(), model: 'Lithophane', preview: thumb });
+    showTab('library');
+    openAtelier(name, data, 'Lithophane', { litho: true, replace: true });
+  } catch (e) {
+    toast('⚠️ ' + e.message, 5000);
+  } finally {
+    b.disabled = false; b.textContent = '🧊 Créer le lithophane';
+  }
+});
+
 // ---------------- atelier : aperçu + tranchage ----------------
 const A = { name: '', objects: [], sel: -1, rot: [0, 0, 0], scale: 100, tris: null, viewer: null, gcode: null, meta: null };
 
-async function openAtelier(name, data, model = '') {
-  openSheet('atelier');
+async function openAtelier(name, data, model = '', { litho = false, replace = false } = {}) {
+  openSheet('atelier', replace);
   $('aTitle').textContent = name;
   $('aResult').hidden = true;
   $('aProg').hidden = true;
@@ -365,13 +450,23 @@ async function openAtelier(name, data, model = '') {
     A.sel = objects.length > 1 ? -1 : 0;
     $('aObj').value = String(A.sel);
     // Pièces mécaniques : poser d'office la plus grande face à plat.
-    A.rot = bestFlatRotation(currentRaw());
+    // Lithophane : orientation voulue (debout) et réglages adaptés.
+    A.rot = litho ? [0, 0, 0] : bestFlatRotation(currentRaw());
+    if (litho) applyLithoPreset();
     updateMesh();
   } catch (e) {
     $('aSize').textContent = '⚠️ ' + e.message;
   }
 }
+// Réglages lithophane le temps de l'atelier, puis retour aux réglages habituels.
+function applyLithoPreset() {
+  if (!A.savedSlice) A.savedSlice = { ...DEFAULT_OPTS, ...cfg.slice };
+  cfg.slice = { ...A.savedSlice, quality: 'fine', infill: 100, walls: 2, support: 'none', adhesion: 'brim' };
+  loadSliceForm();
+  toast('🖼️ Réglages lithophane : fin 0,12 mm, 100 %, bordure', 4000);
+}
 function atelierClose() {
+  if (A.savedSlice) { cfg.slice = A.savedSlice; A.savedSlice = null; saveCfg(); loadSliceForm(); }
   if (A.viewer) { A.viewer.dispose(); A.viewer = null; }
   A.objects = []; A.tris = null; A.gcode = null;
 }

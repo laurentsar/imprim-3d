@@ -31,6 +31,20 @@ CuraEngine compilé en WebAssembly (`cura-wasm` 1.5.2, vendoré dans
 La pièce est centrée en X/Y et posée sur Z=0 avant tranchage (`mesh.prepare`) :
 CuraEngine place l'origine du maillage au centre du plateau.
 
+## Lithophane
+📂 Mes fichiers → **🖼️ Lithophane** : photo → aperçu à contre-jour → STL rangé
+dans la collection → atelier réglé pour (fin 0,12 mm, 100 %, bordure ; les
+réglages habituels reviennent à la fermeture). Code : `www/lithophane.js`.
+
+- **Épaisseur** : modèle de translucidité du plugin ImageReader de **Cura**
+  (LGPL-3.0, réécrit en JS) — loi de Beer-Lambert, transmission 50 % par mm
+  (PLA blanc), luminance sRGB linéarisée. Blanc = épaisseur mini, noir = maxi.
+- **Options** (inspirées de 3dp.rocks/lithophane) : plat ou courbe (arc 30–300°),
+  cadre, négatif, miroir, lissage, impression debout (conseillé), détail
+  0,15–0,35 mm/pixel.
+- Maillage fermé : dessus en grille, dessous en bandes (sans jonction en T),
+  orientation des faces vérifiée par le volume signé.
+
 ## OctoPrint
 Adresse par défaut `http://192.168.1.91:5000`. Clé API : bouton **Demander
 une clé** (plugin Application Keys, à accepter dans l'interface OctoPrint) ou
