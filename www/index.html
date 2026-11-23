@@ -54,9 +54,10 @@
       <label class="primary file-btn">📂 Importer .stl / .3mf
         <input id="fileInput" type="file" accept=".stl,.3mf,model/stl,application/sla,application/vnd.ms-package.3dmanufacturing-3dmodel+xml,application/octet-stream" multiple hidden />
       </label>
+      <button type="button" id="linkBtn" class="file-btn">🔗 Importer un lien</button>
     </div>
     <div id="libList" class="list"></div>
-    <p id="libEmpty" class="empty">Aucun fichier.<br>Garde un modèle depuis <b>🔎 Modèles</b> (💾), importe un fichier, ou partage un lien / un .stl depuis une autre appli vers <b>Imprim 3D</b>.</p>
+    <p id="libEmpty" class="empty">Aucun fichier.<br>Garde un modèle depuis <b>🔎 Modèles</b> (💾), importe un fichier ou un lien (🔗), ou partage un lien / un .stl depuis une autre appli vers <b>Imprim 3D</b>.</p>
   </section>
 
   <!-- ============================ IMPRIMANTE ============================ -->
@@ -196,7 +197,7 @@
   <script src="vendor/jszip.min.js"></script>
   <script>
     window.UPDATE_REPO = 'laurentsar/imprim-3d';
-    window.APP_VERSION = '1.0';
+    window.APP_VERSION = '1.1';
   </script>
   <script type="module" src="app.js"></script>
   <script src="update-check.js"></script>

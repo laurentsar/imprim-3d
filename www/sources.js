@@ -176,6 +176,54 @@ export function parseLink(text) {
   if ((m = url.match(/printables\.com\/(?:[a-z]{2}\/)?model\/(\d+)/i))) return { src: 'printables', id: m[1], url };
   if ((m = url.match(/thingiverse\.com\/thing:(\d+)/i))) return { src: 'thingiverse', id: m[1], url };
   if ((m = url.match(/makerworld\.com\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?models\/(\d+)/i))) return { src: 'makerworld', id: m[1], url };
-  if (/\.(stl|3mf)(\?|#|$)/i.test(url)) return { direct: url, name: decodeURIComponent(url.split(/[?#]/)[0].split('/').pop()) };
-  return { unknown: url };
+  const direct = directUrl(url);
+  return { direct, name: fileNameFromUrl(direct) };
+}
+
+// Liens de partage courants → lien de téléchargement direct.
+export function directUrl(url) {
+  let m;
+  // Dropbox : ?dl=0 → ?dl=1
+  if (/(^|\.)dropbox\.com\//i.test(url)) {
+    const u = new URL(url);
+    u.searchParams.delete('dl'); u.searchParams.set('dl', '1');
+    return u.toString();
+  }
+  // GitHub : /blob/ → raw.githubusercontent.com
+  if ((m = url.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/(?:blob|raw)\/(.+)$/i)))
+    return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3].split(/[?#]/)[0]}`;
+  // Google Drive : /file/d/ID/… ou ?id=ID → téléchargement direct
+  if ((m = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:.*&)?id=)([\w-]+)/i)))
+    return `https://drive.usercontent.google.com/download?id=${m[1]}&export=download&confirm=t`;
+  return url;
+}
+
+function fileNameFromUrl(url) {
+  let n = '';
+  try { n = decodeURIComponent(new URL(url).pathname.split('/').pop() || ''); } catch (e) { /* URL invalide */ }
+  return n;
+}
+
+// Télécharge un fichier 3D depuis un lien quelconque : nom tiré de
+// Content-Disposition ou de l'URL, format vérifié sur le contenu (refuse une page HTML).
+export async function downloadModel(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('Téléchargement impossible (HTTP ' + r.status + ')');
+  const data = await r.arrayBuffer();
+  const head = new TextDecoder().decode(new Uint8Array(data, 0, Math.min(512, data.byteLength))).trimStart().toLowerCase();
+  if (head.startsWith('<!doctype') || head.startsWith('<html') || head.startsWith('<?xml') && head.includes('<html'))
+    throw new Error('Ce lien ouvre une page web, pas un fichier .stl / .3mf');
+  const b = new Uint8Array(data, 0, Math.min(4, data.byteLength));
+  const isZip = b[0] === 0x50 && b[1] === 0x4b;
+  const isStl = /^solid/.test(head) || (data.byteLength >= 84 && 84 + new DataView(data).getUint32(80, true) * 50 === data.byteLength);
+  let name = '';
+  const cd = r.headers.get('content-disposition') || '';
+  const cm = cd.match(/filename\*=(?:UTF-8'')?([^;]+)/i) || cd.match(/filename="?([^";]+)"?/i);
+  if (cm) { try { name = decodeURIComponent(cm[1].trim()); } catch (e) { name = cm[1].trim(); } }
+  if (!name) name = fileNameFromUrl(r.url || url);
+  if (!/\.(stl|3mf)$/i.test(name)) {
+    if (!isZip && !isStl) throw new Error('Le lien ne donne pas un fichier .stl / .3mf');
+    name = (name.replace(/\.[a-z0-9]{1,5}$/i, '') || 'modele') + (isZip ? '.3mf' : '.stl');
+  }
+  return { name, data };
 }

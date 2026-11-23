@@ -1,6 +1,6 @@
 // Imprim 3D — modèles (Printables / Thingiverse / MakerWorld / liens) → aperçu 3D
 // → tranchage CuraEngine (WASM) profil Ender 3 → envoi OctoPrint.
-import { SOURCES, parseLink, getBinary } from './sources.js';
+import { SOURCES, parseLink, downloadModel } from './sources.js';
 import { loadModel, prepare, bounds, bestFlatRotation, toBinarySTL, concat } from './mesh.js';
 import { curaSettings, filamentGrams, MATERIALS, QUALITIES, DEFAULT_OPTS } from './slicer-settings.js';
 import { OctoPrint } from './octoprint.js';
@@ -151,12 +151,8 @@ $('searchForm').addEventListener('submit', e => {
   browse.query = v;
   loadList(true);
 });
-$('pasteBtn').addEventListener('click', async () => {
-  let t = '';
-  try { t = await navigator.clipboard.readText(); } catch (e) { /* refusé */ }
-  if (!t) t = prompt('Colle le lien du modèle (Printables, Thingiverse, MakerWorld ou lien direct .stl/.3mf) :') || '';
-  if (t) handleLink(t);
-});
+$('pasteBtn').addEventListener('click', askLink);
+$('linkBtn').addEventListener('click', askLink);
 $('moreBtn').addEventListener('click', () => loadList(false));
 
 function renderModes() {
@@ -287,13 +283,19 @@ async function handleLink(text) {
   if (l.direct) {
     toast('⏳ Téléchargement…');
     try {
-      const data = await getBinary(l.direct);
-      await keepFile(l.name, data, { src: 'lien', url: l.direct });
-      openAtelier(l.name, data);
+      const { name, data } = await downloadModel(l.direct);
+      await keepFile(name, data, { src: 'lien', url: l.direct });
+      renderLibrary();
+      openAtelier(name, data);
     } catch (e) { toast('⚠️ ' + e.message, 5000); }
-    return;
   }
-  toast('Lien non pris en charge : Printables, Thingiverse, MakerWorld ou lien direct .stl/.3mf', 5000);
+}
+
+async function askLink() {
+  let t = '';
+  try { t = await navigator.clipboard.readText(); } catch (e) { /* refusé */ }
+  if (!parseLink(t)) t = prompt('Colle le lien du modèle (Printables, Thingiverse, MakerWorld, ou lien vers un .stl / .3mf : Dropbox, Google Drive, GitHub…) :', '') || '';
+  if (t) handleLink(t);
 }
 
 // Partage Android → Imprim 3D (texte/lien ou fichier .stl/.3mf).
