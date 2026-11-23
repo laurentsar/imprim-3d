@@ -118,6 +118,7 @@ $('libList').addEventListener('click', async e => {
   }
 });
 $('fileInput').addEventListener('change', async e => {
+  if (!$('detail').hidden) { closeSheet('detail'); showTab('library'); }
   for (const f of e.target.files) {
     const data = await f.arrayBuffer();
     await keepFile(f.name, data, { src: 'local' });
@@ -228,8 +229,16 @@ async function openDetail(src, id) {
     $('dDesc').textContent = htmlToText(d.html) || '—';
     if (d.external) {
       $('dExternal').hidden = false;
-      $('dExternal').innerHTML = 'MakerWorld exige un compte pour télécharger. Touche <b>Ouvrir sur MakerWorld</b>, télécharge le fichier (.3mf / .stl), puis <b>Partager → Imprim 3D</b> — ou importe-le depuis <b>📂 Mes fichiers</b>.<div class="btns"><button class="primary" id="dOpen2">↗️ Ouvrir sur MakerWorld</button></div>';
+      $('dExternal').innerHTML = `<b>MakerWorld ne donne pas le fichier sans compte Bambu.</b>
+        <ol class="steps">
+          <li>Touche <b>Ouvrir sur MakerWorld</b> et connecte-toi si besoin.</li>
+          <li>Touche <b>Télécharger</b> sur le site : le fichier (.3mf / .stl) va dans <b>Téléchargements</b>.</li>
+          <li>Reviens ici et touche <b>Importer le fichier téléchargé</b>.</li>
+        </ol>
+        <div class="btns"><button class="primary" id="dOpen2">↗️ 1. Ouvrir sur MakerWorld</button>
+        <button id="dImport2">📂 3. Importer le fichier téléchargé</button></div>`;
       $('dOpen2').onclick = () => openExternal(d.url);
+      $('dImport2').onclick = () => $('fileInput').click();
       $('dFiles').innerHTML = '';
     } else {
       $('dFiles').innerHTML = d.files.length ? d.files.map((f, i) => `
@@ -287,11 +296,8 @@ async function handleLink(text, { toLibrary = false } = {}) {
   try {
     if (l.src) {
       const d = await SOURCES[l.src].detail(l.id, { token: cfg.tvToken });
-      if (d.external || !d.files.length) {
-        toast(d.external ? 'MakerWorld exige un compte : télécharge le fichier sur le site puis Partager → Imprim 3D' : 'Aucun fichier .stl / .3mf dans ce modèle', 6000);
-        if (d.external) openExternal(d.url);
-        return;
-      }
+      if (d.external) { toast('MakerWorld : suis les étapes', 2500); openDetail(l.src, l.id); return; }
+      if (!d.files.length) { toast('Aucun fichier .stl / .3mf dans ce modèle', 5000); return; }
       let n = 0;
       for (const f of d.files) {
         toast(`⏳ ${++n}/${d.files.length} · ${f.name}`, 60000);

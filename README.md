@@ -8,7 +8,7 @@ Appli Android (Capacitor) + PWA : trouver un modèle 3D, le voir, le trancher
 |---|---|---|
 | Printables | ✅ sans compte (GraphQL public) | ✅ (`getDownloadLink`) |
 | Thingiverse | ✅ avec un **App Token** (⚙️ Réglages) | ✅ |
-| MakerWorld | ✅ sans compte | ❌ compte Bambu exigé → ouverture du site, puis *Partager → Imprim 3D* |
+| MakerWorld | ✅ sans compte | ❌ compte Bambu exigé → fiche avec étapes : ouvrir le site, télécharger, puis *Importer le fichier téléchargé* (ou *Partager → Imprim 3D*) |
 | Lien collé / partagé (🔗 dans Modèles, ou 🔗 dans Mes fichiers : fichiers rangés directement dans la collection) | page Printables / Thingiverse / MakerWorld, ou lien vers un `.stl` / `.3mf` (direct, Dropbox, Google Drive, GitHub, lien sans extension : format détecté sur le contenu) | |
 
 Fichiers acceptés : STL (binaire/ASCII) et 3MF (objets, composants, fichiers
