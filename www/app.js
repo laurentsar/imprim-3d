@@ -88,6 +88,7 @@ const DB = {
 async function keepFile(name, data, meta = {}) {
   const id = (meta.src || 'local') + ':' + (meta.fileId || name) + ':' + data.byteLength;
   await DB.put({ id, name, data, size: data.byteLength, date: Date.now(), ...meta });
+  if (curTab === 'library') renderLibrary();
   return id;
 }
 
@@ -151,8 +152,8 @@ $('searchForm').addEventListener('submit', e => {
   browse.query = v;
   loadList(true);
 });
-$('pasteBtn').addEventListener('click', askLink);
-$('linkBtn').addEventListener('click', askLink);
+$('pasteBtn').addEventListener('click', () => askLink());
+$('linkBtn').addEventListener('click', () => askLink({ toLibrary: true }));
 $('moreBtn').addEventListener('click', () => loadList(false));
 
 function renderModes() {
@@ -276,26 +277,42 @@ async function openExternal(url) {
 }
 
 // ---------------- liens collés / partagés ----------------
-async function handleLink(text) {
+// toLibrary : import depuis Mes fichiers → les fichiers sont rangés dans la
+// collection sans passer par la fiche du modèle ni l'atelier.
+async function handleLink(text, { toLibrary = false } = {}) {
   const l = parseLink(text);
   if (!l) { toast('Aucun lien reconnu'); return; }
-  if (l.src) { openDetail(l.src, l.id); return; }
-  if (l.direct) {
-    toast('⏳ Téléchargement…');
-    try {
-      const { name, data } = await downloadModel(l.direct);
-      await keepFile(name, data, { src: 'lien', url: l.direct });
-      renderLibrary();
-      openAtelier(name, data);
-    } catch (e) { toast('⚠️ ' + e.message, 5000); }
-  }
+  if (l.src && !toLibrary) { openDetail(l.src, l.id); return; }
+  toast('⏳ Téléchargement…', 60000);
+  try {
+    if (l.src) {
+      const d = await SOURCES[l.src].detail(l.id, { token: cfg.tvToken });
+      if (d.external || !d.files.length) {
+        toast(d.external ? 'MakerWorld exige un compte : télécharge le fichier sur le site puis Partager → Imprim 3D' : 'Aucun fichier .stl / .3mf dans ce modèle', 6000);
+        if (d.external) openExternal(d.url);
+        return;
+      }
+      let n = 0;
+      for (const f of d.files) {
+        toast(`⏳ ${++n}/${d.files.length} · ${f.name}`, 60000);
+        const data = await f.get();
+        await keepFile(f.name, data, { src: d.src, fileId: f.id, model: d.name, preview: f.preview || d.images[0] || '', url: d.url });
+      }
+      toast(`💾 ${n} fichier${n > 1 ? 's' : ''} ajouté${n > 1 ? 's' : ''} : ${d.name}`);
+      return;
+    }
+    const { name, data } = await downloadModel(l.direct);
+    await keepFile(name, data, { src: 'lien', url: l.direct });
+    if (toLibrary) toast('💾 Ajouté à Mes fichiers : ' + name);
+    else openAtelier(name, data);
+  } catch (e) { toast('⚠️ ' + e.message, 5000); }
 }
 
-async function askLink() {
+async function askLink(opts) {
   let t = '';
   try { t = await navigator.clipboard.readText(); } catch (e) { /* refusé */ }
   if (!parseLink(t)) t = prompt('Colle le lien du modèle (Printables, Thingiverse, MakerWorld, ou lien vers un .stl / .3mf : Dropbox, Google Drive, GitHub…) :', '') || '';
-  if (t) handleLink(t);
+  if (t) handleLink(t, opts);
 }
 
 // Partage Android → Imprim 3D (texte/lien ou fichier .stl/.3mf).
