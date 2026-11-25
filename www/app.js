@@ -625,7 +625,7 @@ $('rSave').addEventListener('click', async () => {
 });
 
 // ---------------- imprimante ----------------
-let prTimer = null, prBusy = false;
+let prTimer = null, prBusy = false, camTimer = null;
 async function refreshPrinter(force) {
   const op = octo();
   $('prNotConf').hidden = op.ok;
@@ -634,6 +634,7 @@ async function refreshPrinter(force) {
   prBusy = true;
   try {
     const { printer, job, conn } = await op.state();
+    $('prAway').hidden = true;
     const flags = printer?.state?.flags || {};
     const stText = printer?.state?.text || conn?.current?.state || 'Déconnectée';
     $('prState').textContent = stText;
@@ -658,14 +659,31 @@ async function refreshPrinter(force) {
     if (curTab === 'printer') {
       const files = await op.files().catch(() => null);
       renderOpFiles(files);
-      if (cfg.cam) { $('camCard').hidden = false; $('camImg').src = cfg.cam + (cfg.cam.includes('?') ? '&' : '?') + '_=' + Date.now(); }
-      else $('camCard').hidden = true;
     }
   } catch (e) {
     $('prState').textContent = '⚠️ ' + e.message;
     setChip('bad', 'Hors ligne');
+    $('prAway').hidden = false;
   } finally { prBusy = false; }
 }
+// Caméra : image rafraîchie toutes les 2 s, indépendamment d'OctoPrint.
+// L'image suivante n'est demandée qu'une fois la précédente chargée (ou en échec).
+let camBusy = false, camFails = 0;
+function refreshCam() {
+  const show = curTab === 'printer' && !!cfg.cam;
+  $('camCard').hidden = !show;
+  if (!show || document.hidden || camBusy) return;
+  camBusy = true;
+  const im = new Image();
+  const stop = setTimeout(() => im.onerror(), 8000);
+  im.onload = () => { clearTimeout(stop); camBusy = false; camFails = 0; $('camImg').src = im.src; $('camMsg').textContent = '🔴 en direct · ' + new Date().toLocaleTimeString('fr-FR'); };
+  im.onerror = () => { clearTimeout(stop); camBusy = false; im.onload = im.onerror = null; if (++camFails >= 2) $('camMsg').textContent = '⚠️ Caméra injoignable (téléphone à la maison ou VPN actif ?)'; };
+  im.src = cfg.cam + (cfg.cam.includes('?') ? '&' : '?') + '_=' + Date.now();
+}
+$('camImg').addEventListener('click', () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if ($('camCard').requestFullscreen) $('camCard').requestFullscreen().catch(() => {});
+});
 function setChip(cls, txt) {
   const c = $('printerChip');
   c.querySelector('.dot').className = 'dot ' + cls;
@@ -713,6 +731,9 @@ document.querySelectorAll('[data-heat]').forEach(b => b.addEventListener('click'
 function startPolling() {
   clearInterval(prTimer);
   prTimer = setInterval(() => { if (!document.hidden) refreshPrinter(false); }, 6000);
+  clearInterval(camTimer);
+  camTimer = setInterval(refreshCam, 2000);
+  refreshCam();
 }
 
 // ---------------- réglages ----------------
