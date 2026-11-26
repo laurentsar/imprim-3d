@@ -15,6 +15,10 @@ Appli Android (Capacitor) + PWA : trouver un modèle 3D, le voir, le trancher
 
 Modèles **gratuits uniquement**, défilement infini.
 
+**Favoris** : ☆ sur une vignette ou dans la fiche d'un modèle → 📂 Mes fichiers →
+⭐ Favoris. Stockés dans `localStorage` (`imprim3d:favs`), donc inclus dans la
+sauvegarde Home Assistant.
+
 Fichiers acceptés : STL (binaire/ASCII) et 3MF (objets, composants, fichiers
 d'objets séparés Bambu/Prusa, transformations). Un 3MF à plusieurs objets
 propose « Tous » ou un objet seul.

@@ -52,6 +52,11 @@
 
   <!-- ============================ MES FICHIERS ============================ -->
   <section id="tab-library" class="tab-panel">
+    <div class="seg" id="libSeg">
+      <button data-view="files" class="on">📂 Fichiers <span id="nFiles"></span></button>
+      <button data-view="favs">⭐ Favoris <span id="nFavs"></span></button>
+    </div>
+    <div id="libFiles">
     <div class="toolbar wrap">
       <label class="primary file-btn">📂 Importer .stl / .3mf
         <input id="fileInput" type="file" accept=".stl,.3mf,model/stl,application/sla,application/vnd.ms-package.3dmanufacturing-3dmodel+xml,application/octet-stream" multiple hidden />
@@ -61,6 +66,11 @@
     </div>
     <div id="libList" class="list"></div>
     <p id="libEmpty" class="empty">Aucun fichier.<br>Garde un modèle depuis <b>🔎 Modèles</b> (💾), importe un fichier ou un lien (🔗), ou partage un lien / un .stl depuis une autre appli vers <b>Imprim 3D</b>.</p>
+    </div>
+    <div id="libFavs" hidden>
+      <div id="favGrid" class="grid"></div>
+      <p id="favEmpty" class="empty">Aucun favori.<br>Touche <b>☆</b> sur un modèle dans <b>🔎 Modèles</b> (vignette ou fiche) pour le retrouver ici.</p>
+    </div>
   </section>
 
   <!-- ============================ IMPRIMANTE ============================ -->
@@ -123,6 +133,7 @@
       <h3>ℹ️ Application</h3>
       <p class="small">Version <b id="appVersion"></b><span id="updState"></span></p>
       <button id="checkUpd">Vérifier les mises à jour</button>
+      <p class="small muted">Favoris : enregistrés sur le téléphone (inclus dans la sauvegarde Home Assistant si elle est configurée).</p>
       <p class="small muted">Tranchage : CuraEngine (WebAssembly, cura-wasm). Aperçu : three.js.</p>
     </div>
   </section>
@@ -132,6 +143,7 @@
     <div class="sheet-head">
       <button class="icon-btn" data-close>←</button>
       <b id="dTitle" class="ellipsis"></b>
+      <button class="icon-btn fav-btn" id="dFav" title="Ajouter aux favoris">☆</button>
       <button class="icon-btn" id="dOpen" title="Ouvrir sur le site">↗️</button>
     </div>
     <div class="sheet-body">
@@ -239,7 +251,7 @@
   <script src="vendor/jszip.min.js"></script>
   <script>
     window.UPDATE_REPO = 'laurentsar/imprim-3d';
-    window.APP_VERSION = '1.6';
+    window.APP_VERSION = '1.7';
   </script>
   <script type="module" src="app.js"></script>
   <script src="update-check.js"></script>

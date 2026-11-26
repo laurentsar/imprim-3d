@@ -140,3 +140,10 @@ button.ghost { background: transparent; }
 #srcSeg { overflow-x: auto; }
 #srcSeg button { white-space: nowrap; flex: 1 0 auto; padding-left: 3px; padding-right: 3px; font-size: 12px; }
 #srcSeg { gap: 1px; }
+.mcard { position: relative; }
+.mcard .fav { position: absolute; top: 6px; right: 6px; z-index: 1; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 18px; color: #fff;
+  background: rgba(11, 18, 32, .72); border: 1px solid rgba(255, 255, 255, .18); }
+.mcard .fav.on { background: rgba(245, 158, 11, .25); border-color: var(--acc); }
+.fav-btn.on { color: var(--acc); }
+#libSeg { margin-bottom: 10px; }

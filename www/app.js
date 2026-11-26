@@ -37,7 +37,7 @@ function showTab(t) {
   curTab = t;
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + t));
-  if (t === 'library') renderLibrary();
+  if (t === 'library') { renderLibrary(); showLibView(); renderFavs(); }
   if (t === 'printer') refreshPrinter(true);
 }
 
@@ -98,6 +98,7 @@ async function renderLibrary() {
   let all = [];
   try { all = (await DB.all()).sort((a, b) => b.date - a.date); } catch (e) { toast('Stockage local indisponible'); }
   $('libEmpty').hidden = all.length > 0;
+  $('nFiles').textContent = all.length ? `(${all.length})` : '';
   $('libList').innerHTML = all.map(m => `
     <div class="item" data-id="${esc(m.id)}">
       ${m.preview ? `<img src="${esc(m.preview)}" alt="" loading="lazy">` : '<div class="ph">🧊</div>'}
@@ -130,6 +131,73 @@ $('fileInput').addEventListener('change', async e => {
   }
   e.target.value = '';
   renderLibrary();
+});
+
+// ---------------- favoris ----------------
+// Modèles mis de côté (pas les fichiers) : { src, id, name, img, author, date }.
+const FAV_KEY = 'imprim3d:favs';
+let favs = [];
+try { favs = JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); } catch (e) { favs = []; }
+const favKey = (src, id) => src + ':' + id;
+const isFav = (src, id) => favs.some(f => favKey(f.src, f.id) === favKey(src, id));
+function saveFavs() { try { localStorage.setItem(FAV_KEY, JSON.stringify(favs)); } catch (e) { toast('Stockage local indisponible'); } }
+function toggleFav(it) {
+  const k = favKey(it.src, it.id);
+  if (isFav(it.src, it.id)) { favs = favs.filter(f => favKey(f.src, f.id) !== k); toast('☆ Retiré des favoris'); }
+  else { favs.unshift({ src: it.src, id: String(it.id), name: it.name || '', img: it.img || '', author: it.author || '', date: Date.now() }); toast('⭐ Ajouté aux favoris (📂 Mes fichiers → ⭐ Favoris)'); }
+  saveFavs();
+  // met à jour toutes les étoiles visibles de ce modèle
+  document.querySelectorAll(`[data-fav="${CSS.escape(k)}"]`).forEach(el => { const on = isFav(it.src, it.id); el.textContent = on ? '⭐' : '☆'; el.classList.toggle('on', on); });
+  if (curDetail && favKey(curDetail.src, curDetail.id) === k) setDetailFav();
+  renderFavs();
+}
+const favMark = it => { const on = isFav(it.src, it.id); return `<span class="fav${on ? ' on' : ''}" role="button" aria-label="Favori" data-fav="${esc(favKey(it.src, it.id))}">${on ? '⭐' : '☆'}</span>`; };
+function cardHTML(it, showSite) {
+  return `
+      <button class="mcard" data-src="${it.src}" data-id="${esc(it.id)}">
+        ${favMark(it)}
+        <img src="${esc(it.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">
+        <span class="t">${esc(it.name)}</span>
+        <span class="m">${showSite ? `<i class="badge">${DIRECT.has(it.src) ? '⬇️ ' : ''}${esc(SOURCES[it.src]?.label || it.src)}</i> ` : ''}${esc(it.author)}${it.likes != null ? ' · ❤️ ' + it.likes : ''}</span>
+      </button>`;
+}
+// Garde les infos des vignettes affichées, pour ajouter un favori sans refaire de requête.
+const shown = new Map();
+function onCardClick(e) {
+  const f = e.target.closest('[data-fav]');
+  const c = e.target.closest('.mcard');
+  if (!c) return;
+  const k = favKey(c.dataset.src, c.dataset.id);
+  if (f) { e.stopPropagation(); toggleFav(shown.get(k) || favs.find(x => favKey(x.src, x.id) === k)); return; }
+  openDetail(c.dataset.src, c.dataset.id);
+}
+function renderFavs() {
+  $('nFavs').textContent = favs.length ? `(${favs.length})` : '';
+  $('favEmpty').hidden = favs.length > 0;
+  $('favGrid').innerHTML = favs.map(f => cardHTML(f, true)).join('');
+}
+$('favGrid').addEventListener('click', onCardClick);
+$('libSeg').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  cfg.libView = b.dataset.view; saveCfg(); showLibView();
+});
+function showLibView() {
+  const v = cfg.libView === 'favs' ? 'favs' : 'files';
+  $('libSeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.view === v));
+  $('libFiles').hidden = v !== 'files';
+  $('libFavs').hidden = v !== 'favs';
+  if (v === 'favs') renderFavs();
+}
+function setDetailFav() {
+  const on = curDetail && isFav(curDetail.src, curDetail.id);
+  $('dFav').textContent = on ? '⭐' : '☆';
+  $('dFav').classList.toggle('on', !!on);
+  $('dFav').title = on ? 'Retirer des favoris' : 'Ajouter aux favoris';
+}
+$('dFav').addEventListener('click', () => {
+  if (!curDetail) return;
+  toggleFav({ src: curDetail.src, id: curDetail.id, name: curDetail.name, img: curDetail.images[0] || '', author: curDetail.author });
 });
 
 // ---------------- parcourir les sources ----------------
@@ -209,12 +277,8 @@ async function loadList(reset) {
     browse.next = r.next;
     const seen = new Set([...$('grid').children].map(c => c.dataset.src + c.dataset.id));
     r.items = r.items.filter(it => !seen.has(it.src + it.id));
-    $('grid').insertAdjacentHTML('beforeend', r.items.map(it => `
-      <button class="mcard" data-src="${it.src}" data-id="${esc(it.id)}">
-        <img src="${esc(it.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">
-        <span class="t">${esc(it.name)}</span>
-        <span class="m">${browse.src === 'all' ? `<i class="badge">${DIRECT.has(it.src) ? '⬇️ ' : ''}${esc(SOURCES[it.src].label)}</i> ` : ''}${esc(it.author)}${it.likes != null ? ' · ❤️ ' + it.likes : ''}</span>
-      </button>`).join(''));
+    r.items.forEach(it => shown.set(favKey(it.src, it.id), it));
+    $('grid').insertAdjacentHTML('beforeend', r.items.map(it => cardHTML(it, browse.src === 'all')).join(''));
     $('moreBtn').hidden = !r.next;
     if (!$('grid').children.length) { $('gridEmpty').hidden = false; $('gridEmpty').textContent = 'Aucun résultat.'; }
   } catch (e) {
@@ -226,15 +290,14 @@ async function loadList(reset) {
     browse.loading = false;
   }
 }
-$('grid').addEventListener('click', e => {
-  const c = e.target.closest('.mcard');
-  if (c) openDetail(c.dataset.src, c.dataset.id);
-});
+$('grid').addEventListener('click', onCardClick);
 
 // ---------------- fiche modèle ----------------
 let curDetail = null;
 async function openDetail(src, id) {
   openSheet('detail');
+  curDetail = null;
+  setDetailFav();
   $('dTitle').textContent = '⏳';
   $('dGallery').innerHTML = '';
   $('dFiles').innerHTML = '<p class="muted small">Chargement…</p>';
@@ -244,6 +307,7 @@ async function openDetail(src, id) {
   try {
     const d = await SOURCES[src].detail(id, { token: cfg.tvToken });
     curDetail = d;
+    setDetailFav();
     $('dTitle').textContent = d.name;
     $('dAuthor').textContent = (d.author ? 'par ' + d.author + ' · ' : '') + SOURCES[src].label;
     $('dGallery').innerHTML = d.images.slice(0, 12).map(u => `<img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer">`).join('');
