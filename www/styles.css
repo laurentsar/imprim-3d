@@ -172,3 +172,7 @@ button.ghost { background: transparent; }
   background: rgba(18, 27, 45, .9); }
 .lb-btn { z-index: 2; }
 .item .ph[data-zoom] { cursor: zoom-in; }
+.viewer-wrap { position: relative; }
+.viewer-full { position: absolute; top: 8px; right: 8px; width: 40px; height: 40px; padding: 0; font-size: 20px;
+  display: flex; align-items: center; justify-content: center; border-radius: 10px;
+  background: rgba(11, 18, 32, .75); border: 1px solid rgba(255, 255, 255, .18); color: #fff; }

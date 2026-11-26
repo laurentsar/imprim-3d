@@ -56,9 +56,16 @@ function closeSheet(id, fromPop = false) {
   if (i >= 0) sheets.splice(i, 1);
   if (id === 'atelier') atelierClose();
   if (id === 'lightbox') lb3dStop();
-  if (!fromPop) history.back();
+  // Retour déclenché par l'appli elle-même : l'événement popstate qui suit ne doit
+  // pas fermer la feuille du dessous (ex. ✕ du plein écran ouvert depuis l'atelier).
+  if (!fromPop) { ignorePop++; history.back(); }
 }
-window.addEventListener('popstate', () => { const id = sheets[sheets.length - 1]; if (id) closeSheet(id, true); });
+let ignorePop = 0;
+window.addEventListener('popstate', () => {
+  if (ignorePop) { ignorePop--; return; }
+  const id = sheets[sheets.length - 1];
+  if (id) closeSheet(id, true);
+});
 document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); closeSheet(b.closest('.sheet, .lightbox').id); }));
 
 // ---------------- bibliothèque locale (IndexedDB) ----------------
@@ -170,7 +177,7 @@ const LB = { list: [], i: 0, s: 1, x: 0, y: 0, mode: 'img' };
 // Élément : { src, cap, model? } — model = id d'un fichier de la bibliothèque → vue 3D possible.
 function openLightbox(list, i = 0) {
   LB.list = list; LB.i = Math.max(0, i);
-  LB.mode = list[LB.i] && list[LB.i].model ? '3d' : 'img';   // un fichier 3D s'ouvre en 3D
+  LB.mode = list[LB.i] && (list[LB.i].model || list[LB.i].tris) ? '3d' : 'img';   // un fichier 3D s'ouvre en 3D
   showLb();
   openSheet('lightbox');
 }
@@ -179,9 +186,10 @@ function showLb() {
   $('lbImg').src = it.src || '';
   $('lbCap').textContent = (it.cap || '') + (LB.list.length > 1 ? `  ·  ${LB.i + 1}/${LB.list.length}` : '');
   $('lbPrev').hidden = $('lbNext').hidden = LB.list.length < 2;
-  $('lbMode').hidden = !it.model || !it.src;
-  if (!it.model) LB.mode = 'img';
-  if (!it.src && it.model) LB.mode = '3d';
+  const has3d = !!(it.model || it.tris);
+  $('lbMode').hidden = !has3d || !it.src;
+  if (!has3d) LB.mode = 'img';
+  if (!it.src && has3d) LB.mode = '3d';
   $('lbMode').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.mode === LB.mode));
   $('lbStage').hidden = LB.mode !== 'img';
   $('lb3d').hidden = LB.mode !== '3d';
@@ -202,12 +210,15 @@ async function lb3dShow(it) {
   $('lb3dMsg').hidden = false;
   $('lb3dMsg').textContent = '⏳ Chargement de la pièce…';
   try {
-    const m = await DB.get(it.model);
-    if (!m) throw new Error('Fichier introuvable');
-    const { objects } = await loadModel(m.name, m.data);
-    if (n !== lbLoad) return;
-    const raw = objects.length > 1 ? concat(objects.map(o => o.tris)) : objects[0].tris;
-    const tris = prepare(raw, { rot: m.src === 'litho' ? [0, 0, 0] : bestFlatRotation(raw) });
+    let tris = it.tris;   // atelier : pièce déjà orientée / mise à l'échelle
+    if (!tris) {
+      const m = await DB.get(it.model);
+      if (!m) throw new Error('Fichier introuvable');
+      const { objects } = await loadModel(m.name, m.data);
+      if (n !== lbLoad) return;
+      const raw = objects.length > 1 ? concat(objects.map(o => o.tris)) : objects[0].tris;
+      tris = prepare(raw, { rot: m.src === 'litho' ? [0, 0, 0] : bestFlatRotation(raw) });
+    }
     if (!lbViewer) {
       const { Viewer } = await import('./viewer.js');
       if (n !== lbLoad) return;
@@ -216,7 +227,8 @@ async function lb3dShow(it) {
       lbViewer.controls.addEventListener('start', () => { lbViewer.controls.autoRotate = false; });
     }
     lbViewer.resize();
-    lbViewer.show(tris);
+    const [bx, by, bz] = bounds(tris).size;
+    lbViewer.show(tris, bx > cfg.bed || by > cfg.bed || bz > 250);
     // En portrait, le champ horizontal est étroit : reculer pour que la pièce tienne en largeur.
     const v = lbViewer, el = $('lb3dView'), asp = (el.clientWidth || 1) / (el.clientHeight || 1);
     const k = Math.max(1.15, 1.15 / asp);
@@ -721,6 +733,9 @@ function updateMesh() {
   A.gcode = null;
   $('aResult').hidden = true;
 }
+$('aFull').addEventListener('click', () => {
+  if (A.tris) openLightbox([{ tris: A.tris, cap: A.name }], 0);
+});
 $('aObj').addEventListener('change', () => { A.sel = +$('aObj').value; A.rot = bestFlatRotation(currentRaw()); updateMesh(); });
 document.querySelectorAll('[data-rot]').forEach(b => b.addEventListener('click', () => {
   const k = +b.dataset.rot;

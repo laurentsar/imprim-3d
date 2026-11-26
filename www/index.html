@@ -166,7 +166,7 @@
       <span></span>
     </div>
     <div class="sheet-body">
-      <div id="viewer" class="viewer"></div>
+      <div class="viewer-wrap"><div id="viewer" class="viewer"></div><button id="aFull" class="viewer-full" title="Vue 3D plein écran">⛶</button></div>
       <div id="aSize" class="size"></div>
       <label class="fld" id="aObjWrap" hidden>Objet<select id="aObj"></select></label>
       <div class="btns tight">
@@ -267,7 +267,7 @@
   <script src="vendor/jszip.min.js"></script>
   <script>
     window.UPDATE_REPO = 'laurentsar/imprim-3d';
-    window.APP_VERSION = '1.9';
+    window.APP_VERSION = '2.0';
   </script>
   <script type="module" src="app.js"></script>
   <script src="update-check.js"></script>

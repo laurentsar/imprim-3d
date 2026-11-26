@@ -20,6 +20,9 @@ Modèles **gratuits uniquement**, défilement infini.
 double appui, balayage ‹ ›) ; idem pour les photos des fiches modèles. Un fichier sans
 image reçoit un rendu 3D automatique (`www/thumb.js`, mémorisé dans la bibliothèque).
 
+**Atelier** : bouton ⛶ sur l'aperçu → même vue 3D plein écran, avec la pièce telle
+qu'orientée / mise à l'échelle (rouge si elle dépasse du plateau).
+
 **Favoris** : ☆ sur une vignette ou dans la fiche d'un modèle → 📂 Mes fichiers →
 ⭐ Favoris. Stockés dans `localStorage` (`imprim3d:favs`), donc inclus dans la
 sauvegarde Home Assistant.
