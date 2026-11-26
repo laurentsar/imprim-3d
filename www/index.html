@@ -75,6 +75,7 @@
 
   <!-- ============================ IMPRIMANTE ============================ -->
   <section id="tab-printer" class="tab-panel">
+    <div id="prAway" class="note" hidden>🌍 Imprimante injoignable. Hors de la maison : active le VPN <b>WireGuard</b> du téléphone, puis 🔄. Aucun port n'est ouvert sur Internet.</div>
     <div id="prNotConf" class="note" hidden>OctoPrint n'est pas configuré : ⚙️ Réglages → OctoPrint.</div>
     <div class="card" id="prCard">
       <div class="row between"><b id="prState">—</b><button id="prRefresh" class="icon-btn">🔄</button></div>
@@ -100,6 +101,7 @@
     </div>
     <div class="card" id="camCard" hidden>
       <img id="camImg" alt="Caméra de l'imprimante" />
+      <p id="camMsg" class="small muted">📷 Chargement…</p>
     </div>
     <h3 class="h3">Fichiers sur OctoPrint</h3>
     <div id="opFiles" class="list"></div>
