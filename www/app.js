@@ -101,13 +101,43 @@ async function renderLibrary() {
   $('nFiles').textContent = all.length ? `(${all.length})` : '';
   $('libList').innerHTML = all.map(m => `
     <div class="item" data-id="${esc(m.id)}">
-      ${m.preview ? `<img src="${esc(m.preview)}" alt="" loading="lazy">` : '<div class="ph">🧊</div>'}
+      ${m.preview ? `<img src="${esc(m.preview)}" alt="" loading="lazy" data-zoom title="Agrandir">` : `<div class="ph">${m.noThumb ? '🧊' : '⏳'}</div>`}
       <div class="body"><div class="name">${esc(m.name)}</div>
         <div class="meta">${esc(m.model || '')}${m.model ? ' · ' : ''}${fmtSize(m.size)} · ${new Date(m.date).toLocaleDateString('fr-FR')}</div></div>
       <div class="acts"><button data-act="open" class="primary">✂️</button><button data-act="del">🗑️</button></div>
     </div>`).join('');
+  makeMissingThumbs(all.filter(m => !m.preview && !m.noThumb));
+}
+
+// Fichiers sans image (import local, lien direct…) : rendu 3D de la pièce, une
+// à la fois, mémorisé dans la bibliothèque.
+let thumbBusy = false;
+async function makeMissingThumbs(list) {
+  if (thumbBusy || !list.length) return;
+  thumbBusy = true;
+  try {
+    const { renderThumb } = await import('./thumb.js');
+    for (const m of list) {
+      let preview = '';
+      try { if (m.size < 60e6) preview = await renderThumb(m.name, m.data); } catch (e) { /* fichier illisible */ }
+      const cur = await DB.get(m.id);
+      if (!cur) continue;
+      if (preview) cur.preview = preview; else cur.noThumb = true;
+      await DB.put(cur);
+      const ph = $('libList').querySelector(`.item[data-id="${CSS.escape(m.id)}"] .ph`);
+      if (ph) ph.outerHTML = preview ? `<img src="${preview}" alt="" data-zoom title="Agrandir">` : '<div class="ph">🧊</div>';
+      await new Promise(r => setTimeout(r, 50));
+    }
+  } catch (e) { /* rendu 3D indisponible (WebGL) */ }
+  thumbBusy = false;
 }
 $('libList').addEventListener('click', async e => {
+  const z = e.target.closest('[data-zoom]');
+  if (z) {
+    const items = [...$('libList').querySelectorAll('[data-zoom]')];
+    openLightbox(items.map(i => ({ src: i.src, cap: i.closest('.item').querySelector('.name').textContent })), items.indexOf(z));
+    return;
+  }
   const b = e.target.closest('button');
   if (!b) return;
   const id = b.closest('.item').dataset.id;
@@ -132,6 +162,71 @@ $('fileInput').addEventListener('change', async e => {
   e.target.value = '';
   renderLibrary();
 });
+
+// ---------------- visionneuse plein écran ----------------
+// Zoom à deux doigts ou double appui, glisser pour déplacer, ‹ › pour changer d'image.
+const LB = { list: [], i: 0, s: 1, x: 0, y: 0 };
+function openLightbox(list, i = 0) {
+  LB.list = list; LB.i = Math.max(0, i);
+  showLb();
+  openSheet('lightbox');
+}
+function showLb() {
+  const it = LB.list[LB.i];
+  $('lbImg').src = it.src;
+  $('lbCap').textContent = (it.cap || '') + (LB.list.length > 1 ? `  ·  ${LB.i + 1}/${LB.list.length}` : '');
+  $('lbPrev').hidden = $('lbNext').hidden = LB.list.length < 2;
+  lbSet(1, 0, 0);
+}
+function lbSet(s, x, y) {
+  LB.s = Math.min(6, Math.max(1, s));
+  if (LB.s === 1) { x = 0; y = 0; }
+  LB.x = x; LB.y = y;
+  $('lbImg').style.transform = `translate(${x}px, ${y}px) scale(${LB.s})`;
+}
+const lbStep = d => { LB.i = (LB.i + d + LB.list.length) % LB.list.length; showLb(); };
+$('lbPrev').addEventListener('click', () => lbStep(-1));
+$('lbNext').addEventListener('click', () => lbStep(1));
+(() => {
+  const st = $('lbStage');
+  let pts = new Map(), start = null, lastTap = 0, moved = false;
+  const dist = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+  st.addEventListener('pointerdown', e => {
+    st.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    moved = false;
+    start = { s: LB.s, x: LB.x, y: LB.y, px: e.clientX, py: e.clientY, d: pts.size === 2 ? dist() : 0 };
+  });
+  st.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId) || !start) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2) {
+      if (!start.d) start = { ...start, d: dist(), s: LB.s };
+      lbSet(start.s * dist() / start.d, LB.x, LB.y);
+      moved = true;
+    } else if (pts.size === 1) {
+      const dx = e.clientX - start.px, dy = e.clientY - start.py;
+      if (Math.abs(dx) + Math.abs(dy) > 8) moved = true;
+      if (LB.s > 1) lbSet(LB.s, start.x + dx, start.y + dy);
+    }
+  });
+  const up = e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.delete(e.pointerId);
+    if (pts.size) { const [p] = [...pts.values()]; start = { s: LB.s, x: LB.x, y: LB.y, px: p.x, py: p.y, d: 0 }; return; }
+    const dx = e.clientX - (start ? start.px : e.clientX);
+    if (LB.s === 1 && moved && Math.abs(dx) > 60 && LB.list.length > 1) { lbStep(dx < 0 ? 1 : -1); return; }   // balayage
+    if (!moved) {
+      const now = Date.now();
+      if (now - lastTap < 300) { lbSet(LB.s > 1 ? 1 : 2.5, 0, 0); lastTap = 0; }                   // double appui
+      else { lastTap = now; if (e.target === st && LB.s === 1) setTimeout(() => { if (lastTap === now) closeSheet('lightbox'); }, 320); }
+    }
+    start = null;
+  };
+  st.addEventListener('pointerup', up);
+  st.addEventListener('pointercancel', up);
+  st.addEventListener('wheel', e => { e.preventDefault(); lbSet(LB.s * (e.deltaY < 0 ? 1.15 : 1 / 1.15), LB.x, LB.y); }, { passive: false });
+})();
 
 // ---------------- favoris ----------------
 // Modèles mis de côté (pas les fichiers) : { src, id, name, img, author, date }.
@@ -311,6 +406,10 @@ async function openDetail(src, id) {
     $('dTitle').textContent = d.name;
     $('dAuthor').textContent = (d.author ? 'par ' + d.author + ' · ' : '') + SOURCES[src].label;
     $('dGallery').innerHTML = d.images.slice(0, 12).map(u => `<img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer">`).join('');
+    $('dGallery').onclick = e => {
+      const im = e.target.closest('img');
+      if (im) openLightbox(d.images.slice(0, 12).map(src => ({ src, cap: d.name })), [...$('dGallery').children].indexOf(im));
+    };
     $('dDesc').textContent = htmlToText(d.html) || '—';
     if (d.external) {
       $('dExternal').hidden = false;

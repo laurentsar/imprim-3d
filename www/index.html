@@ -248,12 +248,21 @@
     </div>
   </div>
 
+  <!-- ============================ VISIONNEUSE ============================ -->
+  <div id="lightbox" class="lightbox" hidden>
+    <div class="lb-stage" id="lbStage"><img id="lbImg" alt="" referrerpolicy="no-referrer" draggable="false" /></div>
+    <button class="lb-btn lb-close" data-close aria-label="Fermer">✕</button>
+    <button class="lb-btn lb-prev" id="lbPrev" aria-label="Précédente">‹</button>
+    <button class="lb-btn lb-next" id="lbNext" aria-label="Suivante">›</button>
+    <div class="lb-cap" id="lbCap"></div>
+  </div>
+
   <div id="toast" class="toast" hidden></div>
 
   <script src="vendor/jszip.min.js"></script>
   <script>
     window.UPDATE_REPO = 'laurentsar/imprim-3d';
-    window.APP_VERSION = '1.7';
+    window.APP_VERSION = '1.8';
   </script>
   <script type="module" src="app.js"></script>
   <script src="update-check.js"></script>

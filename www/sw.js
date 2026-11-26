@@ -1,10 +1,10 @@
 /* Imprim 3D — service worker (version web uniquement). Cache l'app shell, y
    compris le trancheur (4 Mo) : il tranche hors ligne. Les API (Printables,
    Thingiverse, MakerWorld, OctoPrint, GitHub) ne sont jamais mises en cache. */
-const CACHE = 'imprim-3d-v1.7';
+const CACHE = 'imprim-3d-v1.8';
 const SHELL = [
   'index.html', 'styles.css', 'app.js', 'sources.js', 'mesh.js', 'viewer.js',
-  'octoprint.js', 'slicer-settings.js', 'lithophane.js', 'update-check.js', 'autobackup.js',
+  'octoprint.js', 'slicer-settings.js', 'lithophane.js', 'thumb.js', 'update-check.js', 'autobackup.js',
   'manifest.webmanifest', 'img/icon-192.png', 'img/icon-512.png',
   'vendor/jszip.min.js', 'vendor/three/three.module.min.js', 'vendor/three/OrbitControls.js',
   'vendor/cura-wasm.es.js', 'vendor/ender3.def.json',

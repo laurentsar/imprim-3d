@@ -15,6 +15,10 @@ Appli Android (Capacitor) + PWA : trouver un modèle 3D, le voir, le trancher
 
 Modèles **gratuits uniquement**, défilement infini.
 
+**Images** : dans 📂 Mes fichiers, appui sur l'image → plein écran (zoom à deux doigts,
+double appui, balayage ‹ ›) ; idem pour les photos des fiches modèles. Un fichier sans
+image reçoit un rendu 3D automatique (`www/thumb.js`, mémorisé dans la bibliothèque).
+
 **Favoris** : ☆ sur une vignette ou dans la fiche d'un modèle → 📂 Mes fichiers →
 ⭐ Favoris. Stockés dans `localStorage` (`imprim3d:favs`), donc inclus dans la
 sauvegarde Home Assistant.
