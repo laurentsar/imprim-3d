@@ -164,3 +164,11 @@ button.ghost { background: transparent; }
 .lb-prev { left: 10px; } .lb-next { right: 10px; }
 .lb-cap { position: absolute; left: 0; right: 0; bottom: calc(14px + env(safe-area-inset-bottom)); text-align: center;
   color: #cbd5e1; font-size: 13px; padding: 0 60px; pointer-events: none; }
+.lb-3d { position: absolute; inset: 0; background: #0b1220; }
+.lb-3d-view { position: absolute; inset: 0; touch-action: none; }
+.lb-3d-msg { position: absolute; left: 16px; right: 16px; top: calc(70px + env(safe-area-inset-top)); text-align: center;
+  color: #e2e8f0; font-size: 13px; pointer-events: none; text-shadow: 0 1px 3px #000; }
+.lb-mode { position: absolute; top: calc(12px + env(safe-area-inset-top)); left: 12px; right: 68px; max-width: 280px;
+  background: rgba(18, 27, 45, .9); }
+.lb-btn { z-index: 2; }
+.item .ph[data-zoom] { cursor: zoom-in; }

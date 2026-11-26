@@ -15,7 +15,8 @@ Appli Android (Capacitor) + PWA : trouver un modèle 3D, le voir, le trancher
 
 Modèles **gratuits uniquement**, défilement infini.
 
-**Images** : dans 📂 Mes fichiers, appui sur l'image → plein écran (zoom à deux doigts,
+**Images** : dans 📂 Mes fichiers, appui sur l'image → plein écran, **vue 3D dynamique** par défaut
+(rotation auto, rotation au doigt, zoom à deux doigts) ou image (zoom à deux doigts,
 double appui, balayage ‹ ›) ; idem pour les photos des fiches modèles. Un fichier sans
 image reçoit un rendu 3D automatique (`www/thumb.js`, mémorisé dans la bibliothèque).
 

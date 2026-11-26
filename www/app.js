@@ -55,10 +55,11 @@ function closeSheet(id, fromPop = false) {
   const i = sheets.indexOf(id);
   if (i >= 0) sheets.splice(i, 1);
   if (id === 'atelier') atelierClose();
+  if (id === 'lightbox') lb3dStop();
   if (!fromPop) history.back();
 }
 window.addEventListener('popstate', () => { const id = sheets[sheets.length - 1]; if (id) closeSheet(id, true); });
-document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => closeSheet(b.closest('.sheet').id)));
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); closeSheet(b.closest('.sheet, .lightbox').id); }));
 
 // ---------------- bibliothèque locale (IndexedDB) ----------------
 const DB = {
@@ -101,7 +102,7 @@ async function renderLibrary() {
   $('nFiles').textContent = all.length ? `(${all.length})` : '';
   $('libList').innerHTML = all.map(m => `
     <div class="item" data-id="${esc(m.id)}">
-      ${m.preview ? `<img src="${esc(m.preview)}" alt="" loading="lazy" data-zoom title="Agrandir">` : `<div class="ph">${m.noThumb ? '🧊' : '⏳'}</div>`}
+      ${m.preview ? `<img src="${esc(m.preview)}" alt="" loading="lazy" data-zoom title="Agrandir">` : `<div class="ph" data-zoom title="Vue 3D">${m.noThumb ? '🧊' : '⏳'}</div>`}
       <div class="body"><div class="name">${esc(m.name)}</div>
         <div class="meta">${esc(m.model || '')}${m.model ? ' · ' : ''}${fmtSize(m.size)} · ${new Date(m.date).toLocaleDateString('fr-FR')}</div></div>
       <div class="acts"><button data-act="open" class="primary">✂️</button><button data-act="del">🗑️</button></div>
@@ -125,7 +126,7 @@ async function makeMissingThumbs(list) {
       if (preview) cur.preview = preview; else cur.noThumb = true;
       await DB.put(cur);
       const ph = $('libList').querySelector(`.item[data-id="${CSS.escape(m.id)}"] .ph`);
-      if (ph) ph.outerHTML = preview ? `<img src="${preview}" alt="" data-zoom title="Agrandir">` : '<div class="ph">🧊</div>';
+      if (ph) ph.outerHTML = preview ? `<img src="${preview}" alt="" data-zoom title="Agrandir">` : '<div class="ph" data-zoom title="Vue 3D">🧊</div>';
       await new Promise(r => setTimeout(r, 50));
     }
   } catch (e) { /* rendu 3D indisponible (WebGL) */ }
@@ -135,7 +136,7 @@ $('libList').addEventListener('click', async e => {
   const z = e.target.closest('[data-zoom]');
   if (z) {
     const items = [...$('libList').querySelectorAll('[data-zoom]')];
-    openLightbox(items.map(i => ({ src: i.src, cap: i.closest('.item').querySelector('.name').textContent })), items.indexOf(z));
+    openLightbox(items.map(i => ({ src: i.src || '', model: i.closest('.item').dataset.id, cap: i.closest('.item').querySelector('.name').textContent })), items.indexOf(z));
     return;
   }
   const b = e.target.closest('button');
@@ -165,18 +166,73 @@ $('fileInput').addEventListener('change', async e => {
 
 // ---------------- visionneuse plein écran ----------------
 // Zoom à deux doigts ou double appui, glisser pour déplacer, ‹ › pour changer d'image.
-const LB = { list: [], i: 0, s: 1, x: 0, y: 0 };
+const LB = { list: [], i: 0, s: 1, x: 0, y: 0, mode: 'img' };
+// Élément : { src, cap, model? } — model = id d'un fichier de la bibliothèque → vue 3D possible.
 function openLightbox(list, i = 0) {
   LB.list = list; LB.i = Math.max(0, i);
+  LB.mode = list[LB.i] && list[LB.i].model ? '3d' : 'img';   // un fichier 3D s'ouvre en 3D
   showLb();
   openSheet('lightbox');
 }
 function showLb() {
   const it = LB.list[LB.i];
-  $('lbImg').src = it.src;
+  $('lbImg').src = it.src || '';
   $('lbCap').textContent = (it.cap || '') + (LB.list.length > 1 ? `  ·  ${LB.i + 1}/${LB.list.length}` : '');
   $('lbPrev').hidden = $('lbNext').hidden = LB.list.length < 2;
+  $('lbMode').hidden = !it.model || !it.src;
+  if (!it.model) LB.mode = 'img';
+  if (!it.src && it.model) LB.mode = '3d';
+  $('lbMode').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.mode === LB.mode));
+  $('lbStage').hidden = LB.mode !== 'img';
+  $('lb3d').hidden = LB.mode !== '3d';
   lbSet(1, 0, 0);
+  if (LB.mode === '3d') lb3dShow(it); else lb3dStop();
+}
+$('lbMode').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  LB.mode = b.dataset.mode;
+  showLb();
+});
+
+// Vue 3D dynamique : rotation au doigt, zoom à deux doigts, rotation auto jusqu'au premier geste.
+let lbViewer = null, lbLoad = 0;
+async function lb3dShow(it) {
+  const n = ++lbLoad;
+  $('lb3dMsg').hidden = false;
+  $('lb3dMsg').textContent = '⏳ Chargement de la pièce…';
+  try {
+    const m = await DB.get(it.model);
+    if (!m) throw new Error('Fichier introuvable');
+    const { objects } = await loadModel(m.name, m.data);
+    if (n !== lbLoad) return;
+    const raw = objects.length > 1 ? concat(objects.map(o => o.tris)) : objects[0].tris;
+    const tris = prepare(raw, { rot: m.src === 'litho' ? [0, 0, 0] : bestFlatRotation(raw) });
+    if (!lbViewer) {
+      const { Viewer } = await import('./viewer.js');
+      if (n !== lbLoad) return;
+      lbViewer = new Viewer($('lb3dView'), cfg.bed);
+      lbViewer.controls.autoRotateSpeed = 2.5;
+      lbViewer.controls.addEventListener('start', () => { lbViewer.controls.autoRotate = false; });
+    }
+    lbViewer.resize();
+    lbViewer.show(tris);
+    // En portrait, le champ horizontal est étroit : reculer pour que la pièce tienne en largeur.
+    const v = lbViewer, el = $('lb3dView'), asp = (el.clientWidth || 1) / (el.clientHeight || 1);
+    const k = Math.max(1.15, 1.15 / asp);
+    v.camera.position.sub(v.controls.target).multiplyScalar(k).add(v.controls.target);
+    v.controls.update();
+    lbViewer.controls.autoRotate = true;
+    const [x, y, z] = bounds(tris).size;
+    $('lb3dMsg').textContent = `${x.toFixed(1)} × ${y.toFixed(1)} × ${z.toFixed(1)} mm · tourne au doigt, zoome à deux doigts`;
+    setTimeout(() => { if (n === lbLoad) $('lb3dMsg').hidden = true; }, 4000);
+  } catch (e) {
+    if (n === lbLoad) $('lb3dMsg').textContent = '⚠️ ' + e.message;
+  }
+}
+function lb3dStop() {
+  lbLoad++;
+  if (lbViewer) { lbViewer.dispose(); lbViewer = null; }
 }
 function lbSet(s, x, y) {
   LB.s = Math.min(6, Math.max(1, s));
